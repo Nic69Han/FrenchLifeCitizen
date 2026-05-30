@@ -12,6 +12,8 @@ import {
   prixCarburant,
   loyerM2,
   aplBase,
+  smicBrut,
+  defaultStateParams,
 } from "./data";
 import { impotMensuel } from "./tax";
 import type {
@@ -23,6 +25,45 @@ import type {
 } from "./types";
 
 const SEUIL_PAUVRETE_2026 = 1216; // €/mois (60 % du revenu médian, ordre INSEE)
+
+/**
+ * Salaire brut mensuel pour l'année donnée, piloté par le SMIC.
+ *
+ * Le salaire saisi dans le profil est exprimé en niveau 2026. On le convertit
+ * en « multiple de SMIC » (m = salaire2026 / SMIC2026). Le salaire d'une année
+ * est alors interpolé entre deux ancrages :
+ *  - une part indexée sur le SMIC (forte pour les bas salaires) ;
+ *  - une part indexée sur les prix (IPC), qui domine pour les hauts salaires.
+ *
+ * Conséquences voulues :
+ *  - bouger le curseur SMIC déplace fortement Mohamed/Fatima (proches du SMIC)
+ *    et très peu un cadre ;
+ *  - sur la timeline 2000–2026, chaque profil suit une trajectoire propre
+ *    (les bas salaires collent à l'histoire du SMIC, les hauts à l'inflation).
+ */
+function salaireBrutMensuel(
+  profile: CitizenProfile,
+  state: StateParams,
+  year: number
+): number {
+  const smic2026 = defaultStateParams(2026).smicBrutMensuel;
+  const salaire2026 = profile.salaireBrutAnnuel / 12;
+  const multipleSmic = salaire2026 / smic2026;
+
+  // Poids du SMIC dans la formation du salaire : ~1 au niveau du SMIC,
+  // décroissant linéairement vers un plancher de 0.1 à partir de 3× SMIC.
+  // (Le poids tombe plus vite que 1/multiple, pour que la sensibilité absolue
+  //  au SMIC soit nettement plus forte chez les bas salaires que chez un cadre.)
+  const poidsSmic = Math.max(0.1, Math.min(1, 1 - 0.45 * (multipleSmic - 1)));
+
+  // Le salaire 2026 est réparti entre une composante indexée SMIC et une
+  // composante indexée prix, puis on applique l'évolution de chaque indice.
+  const partSmic =
+    salaire2026 * poidsSmic * (state.smicBrutMensuel / smic2026);
+  const partPrix = salaire2026 * (1 - poidsSmic) * (ipc(year) / ipc(2026));
+
+  return partSmic + partPrix;
+}
 
 /** Coût mensuel du transport selon le mode et la distance. */
 function coutTransport(
@@ -115,7 +156,7 @@ function pensionRetraite(
   state: StateParams,
   year: number
 ): number {
-  const salaireMensuel = profile.salaireBrutAnnuel / 12;
+  const salaireMensuel = salaireBrutMensuel(profile, state, year);
   const trimestresCotises = Math.min(
     state.trimestresRequis,
     profile.anciennete * 4
@@ -144,10 +185,12 @@ function computeYear(
     depensesContraintes: number;
   };
 } {
-  const revenuBrutMensuel = Math.max(
-    profile.contrat === "sansEmploi" ? state.rsaSocle : profile.salaireBrutAnnuel / 12,
-    profile.contrat === "retraite" ? pensionRetraite(profile, state, year) : 0
-  );
+  const revenuBrutMensuel =
+    profile.contrat === "sansEmploi"
+      ? state.rsaSocle
+      : profile.contrat === "retraite"
+      ? pensionRetraite(profile, state, year)
+      : salaireBrutMensuel(profile, state, year);
 
   const cotisations =
     profile.contrat === "sansEmploi" || profile.contrat === "retraite"
@@ -187,9 +230,9 @@ function computeYear(
   const depensesContraintes =
     loyer + transport + energie + alimentation + santeRAC + abonnements;
 
+  // `aides` inclut déjà les allocations familiales, le RSA et les APL.
   const pouvoirAchat =
-    revenuNetAvantImpot - ir + aides - depensesContraintes + alloc * 0;
-  // (alloc déjà inclus dans `aides`)
+    revenuNetAvantImpot - ir + aides - depensesContraintes;
 
   const tauxEffortLogement =
     revenuNetAvantImpot > 0 ? (loyer / revenuNetAvantImpot) * 100 : 0;
@@ -228,6 +271,46 @@ function computeYear(
   };
 }
 
+/**
+ * Curseurs « par défaut » (taxe carbone, TICPE) où la valeur réelle peut être
+ * nulle certaines années : on y applique l'écart utilisateur de façon additive
+ * plutôt que multiplicative.
+ */
+const PARAMS_ADDITIFS: (keyof StateParams)[] = ["taxeCarbone", "ticpe"];
+
+/**
+ * Paramètres effectifs pour `targetYear`, en propageant les choix de
+ * l'utilisateur (faits pour `selectedYear`) sur toute la timeline.
+ *
+ * Pour chaque curseur, on mesure l'écart entre la valeur choisie et la valeur
+ * réelle de l'année sélectionnée, puis on applique le même écart — en ratio
+ * (niveaux) ou en absolu (params additifs) — à la valeur réelle de l'année
+ * cible. Ainsi le rejeu « France réelle » garde l'histoire de chaque année,
+ * tandis qu'un « Et si ? » se superpose de façon cohérente dans le temps.
+ */
+function effectiveParams(
+  userState: StateParams,
+  selectedYear: number,
+  targetYear: number
+): StateParams {
+  const baseSel = defaultStateParams(selectedYear);
+  const baseTarget = defaultStateParams(targetYear);
+  const out = { ...baseTarget };
+
+  (Object.keys(baseTarget) as (keyof StateParams)[]).forEach((k) => {
+    const chosen = userState[k];
+    const refSel = baseSel[k];
+    if (PARAMS_ADDITIFS.includes(k)) {
+      out[k] = Math.max(0, baseTarget[k] + (chosen - refSel));
+    } else if (refSel !== 0) {
+      out[k] = baseTarget[k] * (chosen / refSel);
+    } else {
+      out[k] = chosen;
+    }
+  });
+  return out;
+}
+
 /** Point d'entrée : simule toute la timeline + détaille l'année sélectionnée. */
 export function simulate(
   profile: CitizenProfile,
@@ -235,7 +318,8 @@ export function simulate(
   selectedYear: number
 ): FullSimulation {
   const timeline: SimulationResult[] = YEARS.map(
-    (y) => computeYear(profile, state, y).result
+    (y) =>
+      computeYear(profile, effectiveParams(state, selectedYear, y), y).result
   );
 
   const { result, details } = computeYear(profile, state, selectedYear);
