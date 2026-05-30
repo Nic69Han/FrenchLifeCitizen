@@ -96,6 +96,14 @@ async function main() {
     rsaBase,
     bmaf,
     afTaux2enf,
+    vieillessePlaf,
+    vieillesseDeplaf,
+    maladieSalarie,
+    csgDeductible,
+    csgImposable,
+    crds,
+    abattementCsg,
+    pssMensuel,
   ] = await Promise.all([
     fetchYaml("marche_travail/salaire_minimum/smic/smic_b_mensuel.yaml"),
     fetchYaml("marche_travail/salaire_minimum/smic/nb_heures_travail_mensuel.yaml"),
@@ -109,6 +117,20 @@ async function main() {
     fetchYaml(
       "prestations_sociales/prestations_familiales/prestations_generales/af/af_cm/taux/enf2.yaml"
     ),
+    fetchYaml(
+      "prelevements_sociaux/cotisations_securite_sociale_regime_general/cnav/salarie/vieillesse_plafonnee.yaml"
+    ),
+    fetchYaml(
+      "prelevements_sociaux/cotisations_securite_sociale_regime_general/cnav/salarie/vieillesse_deplafonnee.yaml"
+    ),
+    fetchYaml(
+      "prelevements_sociaux/cotisations_securite_sociale_regime_general/mmid/salarie/maladie.yaml"
+    ),
+    fetchYaml("prelevements_sociaux/contributions_sociales/csg/activite/deductible.yaml"),
+    fetchYaml("prelevements_sociaux/contributions_sociales/csg/activite/imposable.yaml"),
+    fetchYaml("prelevements_sociaux/contributions_sociales/crds.yaml"),
+    fetchYaml("prelevements_sociaux/contributions_sociales/csg/activite/abattement.yaml"),
+    fetchYaml("prelevements_sociaux/pss/plafond_securite_sociale_mensuel.yaml"),
   ]);
 
   // --- SMIC brut mensuel ----------------------------------------------------
@@ -159,6 +181,34 @@ async function main() {
     return base && taux ? Math.round(base * taux) : null;
   });
 
+  // --- Taux de cotisations salariales effectif (brut → net) -----------------
+  // Somme des prélèvements salariés à taux simple, réels et datés (OpenFisca) :
+  // vieillesse (plafonnée + déplafonnée) + maladie salarié + CSG (déductible +
+  // imposable) + CRDS, ces trois dernières assises sur (1 − abattement) du brut.
+  //
+  // Complément AGIRC-ARRCO : la retraite complémentaire obligatoire du privé
+  // n'est pas un taux simple dans OpenFisca (barème par tranches + taux d'appel),
+  // on l'ajoute donc via une constante documentée correspondant au taux
+  // contractuel salarié réel sur la tranche 1 (sous PSS), appel inclus :
+  //   • ~3,10 % avant 2019  • ~4,01 % depuis la fusion AGIRC-ARRCO de 2019
+  //   (source : accord AGIRC-ARRCO ; T1 3,15 % × appel 127 % + CEG 0,86 %).
+  const arrcoSalarieT1 = (y: number) => (y >= 2019 ? 0.0401 : 0.031);
+
+  const tauxCotisSalariales = YEARS.map((y) => {
+    const d = `${y}-01-01`;
+    const vp = valueAsOf(vieillessePlaf, d) ?? 0;
+    const vd = valueAsOf(vieillesseDeplaf, d) ?? 0;
+    const mal = valueAsOf(maladieSalarie, d) ?? 0;
+    const csgD = valueAsOf(csgDeductible, d) ?? 0;
+    const csgI = valueAsOf(csgImposable, d) ?? 0;
+    const cr = valueAsOf(crds, d) ?? 0;
+    const abat = valueAsOf(abattementCsg, d) ?? 0;
+    const assietteCsg = 1 - abat;
+    const taux =
+      vp + vd + mal + (csgD + csgI + cr) * assietteCsg + arrcoSalarieT1(y);
+    return Math.round(taux * 10000) / 10000;
+  });
+
   const out = {
     meta: {
       description:
@@ -173,10 +223,21 @@ async function main() {
       note:
         "OpenFisca encode le DROIT (paramètres légaux), pas les statistiques. " +
         "IPC, carburant, loyers, taux de crédit restent dans economic-series.json.",
+      tauxCotisationsNote:
+        "tauxCotisationsSalariales = vieillesse + maladie + CSG/CRDS (sur assiette " +
+        "abattue) réels OpenFisca, + complément AGIRC-ARRCO T1 documenté (~3,1 % " +
+        "avant 2019, ~4,01 % depuis). Hypothèse : rémunération sous le PSS.",
     },
     years: YEARS,
     smicBrutMensuel: smicMensuelSerie,
+    pssMensuel: YEARS.map((y) => {
+      const v = valueAsOf(pssMensuel, `${y}-01-01`);
+      if (!v) return null;
+      // Avant l'euro (2002), le PSS est exprimé en francs → conversion.
+      return Math.round(y >= 2002 ? v : v / FRANC_PAR_EURO);
+    }),
     tvaNormale: YEARS.map((y) => valueAsOf(tvaNormale, `${y}-01-01`)),
+    tauxCotisationsSalariales: tauxCotisSalariales,
     rsaSocleBase: YEARS.map((y) => {
       const v = valueAsOf(rsaBase, `${y}-01-01`);
       return v ? Math.round(v) : null;
@@ -196,6 +257,10 @@ async function main() {
   );
   console.log(
     `  Alloc. fam. 2 enfants 2026 : ${afDeuxEnfants.at(-1)} €/mois`
+  );
+  console.log(
+    `  PSS mensuel 2026 : ${out.pssMensuel.at(-1)} € · ` +
+      `cotis. salariales 2026 : ${(tauxCotisSalariales.at(-1)! * 100).toFixed(2)} %`
   );
 }
 

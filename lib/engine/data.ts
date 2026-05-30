@@ -44,8 +44,6 @@ function readLegal(key: keyof typeof legal, year: number): number {
 // --- Séries statistiques (non officielles) ---------------------------------
 export const ipc = (year: number) => read("ipc", year);
 export const prixCarburant = (year: number) => read("prixCarburantLitre", year);
-export const tauxCotisations = (year: number) =>
-  read("tauxCotisationsSalariales", year);
 export const tauxCreditImmo = (year: number) => read("tauxCreditImmo", year);
 export const loyerM2 = (year: number) => read("loyerMoyenM2", year);
 export const ageLegal = (year: number) => read("ageLegalRetraite", year);
@@ -57,6 +55,10 @@ export const aplBase = (year: number) => read("aplBaseMensuelle", year);
 export const smicBrut = (year: number) => readLegal("smicBrutMensuel", year);
 export const tvaNormale = (year: number) => readLegal("tvaNormale", year);
 export const rsaSocle = (year: number) => readLegal("rsaSocleBase", year);
+export const pssMensuel = (year: number) => readLegal("pssMensuel", year);
+/** Taux de cotisations salariales effectif réel (vieillesse+maladie+CSG/CRDS+ARRCO). */
+export const tauxCotisations = (year: number) =>
+  readLegal("tauxCotisationsSalariales", year);
 /** Allocations familiales mensuelles réelles pour 2 enfants (base BMAF). */
 export const allocFamillesDeuxEnfants = (year: number) =>
   readLegal("allocFamilialesDeuxEnfants", year);
