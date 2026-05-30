@@ -16,6 +16,7 @@ import {
   defaultStateParams,
 } from "./data";
 import { impotMensuel } from "./tax";
+import { cspProfile } from "./csp";
 import type {
   CitizenProfile,
   StateParams,
@@ -62,7 +63,14 @@ function salaireBrutMensuel(
     salaire2026 * poidsSmic * (state.smicBrutMensuel / smic2026);
   const partPrix = salaire2026 * (1 - poidsSmic) * (ipc(year) / ipc(2026));
 
-  return partSmic + partPrix;
+  // Effet de carrière : le profil décrit la situation en 2026 (à son âge
+  // actuel). Les années passées, la personne était plus jeune et plus bas sur
+  // sa courbe de carrière — pente d'autant plus marquée que la CSP est
+  // "ascendante" (forte pour un cadre, quasi plate pour un ouvrier).
+  const pente = cspProfile(profile.csp).penteCarriere;
+  const facteurCarriere = Math.pow(1 + pente, year - 2026);
+
+  return (partSmic + partPrix) * facteurCarriere;
 }
 
 /** Coût mensuel du transport selon le mode et la distance. */
@@ -163,8 +171,10 @@ function pensionRetraite(
   );
   const tauxLiquidation =
     0.5 * (trimestresCotises / state.trimestresRequis);
-  // Salaire annuel moyen approché par le salaire courant.
-  const sam = salaireMensuel;
+  // Salaire annuel moyen approché par le salaire courant, pondéré par le taux
+  // de remplacement propre à la CSP (régime fonctionnaire favorable,
+  // indépendants moins couverts…).
+  const sam = salaireMensuel * cspProfile(profile.csp).remplacementRetraite;
   const pension = sam * tauxLiquidation;
   const minimumRetraite = state.smicBrutMensuel * 0.85 * 0.5;
   return Math.max(pension, minimumRetraite);
@@ -192,10 +202,15 @@ function computeYear(
       ? pensionRetraite(profile, state, year)
       : salaireBrutMensuel(profile, state, year);
 
+  // Les indépendants ont un taux de cotisations effectif plus faible sur leur
+  // rémunération que les salariés (assiette et régime différents) ~ -30 %.
+  const partIndep = cspProfile(profile.csp).partIndependant;
+  const tauxCotisEffectif =
+    state.tauxCotisationsSalariales * (1 - 0.3 * partIndep);
   const cotisations =
     profile.contrat === "sansEmploi" || profile.contrat === "retraite"
       ? 0
-      : revenuBrutMensuel * state.tauxCotisationsSalariales;
+      : revenuBrutMensuel * tauxCotisEffectif;
   const revenuNetAvantImpot = revenuBrutMensuel - cotisations;
 
   const ir =
@@ -248,9 +263,25 @@ function computeYear(
   if (resteAVivre < SEUIL_PAUVRETE_2026 * (ipc(year) / ipc(2026)))
     score += 35;
   if (profile.sante === "ald" || profile.sante === "handicap") score += 15;
-  if (profile.contrat === "sansEmploi") score += 20;
-  if (["interim", "cdd"].includes(profile.contrat)) score += 8;
-  const scorePrecarite = Math.min(100, score);
+
+  // Composante "emploi" pondérée par le risque propre à la CSP : un statut
+  // précaire pèse plus lourd pour un ouvrier que pour un fonctionnaire.
+  const risque = cspProfile(profile.csp).risqueEmploi;
+  let scoreEmploi = 0;
+  if (profile.contrat === "sansEmploi") scoreEmploi += 20;
+  else if (["interim", "cdd"].includes(profile.contrat)) scoreEmploi += 8;
+  // Risque de fond lié à la CSP, même en emploi stable.
+  scoreEmploi += Math.max(0, (risque - 1) * 10);
+  score += scoreEmploi * risque;
+
+  // Vulnérabilité liée à l'âge : entrée dans la vie active et fin de carrière
+  // (seniors plus difficilement réemployables) sont plus exposées.
+  if (profile.contrat !== "retraite") {
+    if (profile.age < 25) score += 6;
+    else if (profile.age >= 55) score += 5;
+  }
+
+  const scorePrecarite = Math.round(Math.min(100, Math.max(0, score)));
 
   return {
     result: {
