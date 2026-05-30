@@ -58,10 +58,15 @@ lib/
     index.ts            simulate() — chaîne causale → 5 indicateurs + timeline
   archetypes.ts         4 profils types (Fatima, Bernard, Claire, Mohamed)
   store.ts              État global Zustand (profil, curseurs, année, mode)
+    csp.ts              Caractéristiques par catégorie socioprofessionnelle
   format.ts             Formatage € / % / nombres en français
 data/
-  economic-series.json  IPC, SMIC, carburant, cotisations, loyers, retraite… 2000–2026
-  fiscal-rules.json     Barème IR de référence (2024) réindexé sur l'IPC
+  legal-parameters.json PARAMÈTRES LÉGAUX RÉELS (SMIC, barème IR par année, TVA,
+                        RSA, allocations) ingérés depuis OpenFisca-France
+  economic-series.json  Séries statistiques (IPC, carburant, loyers, cotisations,
+                        retraite) — ordres de grandeur, non officiels (cf. ci-dessous)
+scripts/
+  ingest-openfisca.ts   Régénère legal-parameters.json depuis OpenFisca (npm run ingest)
 ```
 
 ### Stack
@@ -108,11 +113,26 @@ plan : traçabilité et pédagogie).
 - Vue impact par décile, mode Politique complet, mode Mandat 5 ans, comparateur
 - Export PDF, authentification, mode Parti et classement communautaire
 
-### Sur les données
-Les séries de `/data` sont des **ordres de grandeur** calibrés sur les valeurs
-publiées (INSEE, DGFiP, URSSAF, Banque de France, CNAV, CAF) afin de rendre la
-simulation crédible et jouable. Elles ne se substituent pas aux données
-officielles et seront remplacées par l'ingestion API en V2.
+### Sur les données — deux niveaux
+
+**1. Paramètres légaux RÉELS** (`data/legal-parameters.json`)
+SMIC, barème de l'impôt sur le revenu (par année), TVA, RSA et allocations
+familiales proviennent d'[**OpenFisca-France**](https://github.com/openfisca/openfisca-france),
+le moteur open-source qui encode le droit fiscal et social français : chaque
+valeur y est **datée et sourcée** (références JO / Légifrance / décrets). Le
+fichier est régénérable, commit OpenFisca épinglé pour la reproductibilité :
+
+```bash
+npm run ingest   # télécharge et normalise les paramètres légaux 2000–2026
+```
+
+**2. Séries statistiques** (`data/economic-series.json`)
+IPC/inflation, prix des carburants, loyers, taux de crédit, taux de cotisations
+et paramètres retraite sont des **ordres de grandeur calibrés, non officiels**.
+OpenFisca encode le *droit*, pas les *statistiques* ; et les APIs INSEE /
+data.gouv / Banque de France ne sont **pas accessibles** depuis l'environnement
+d'exécution actuel (politique réseau — `host_not_allowed`). Ces séries seront
+remplacées par l'ingestion INSEE dès que le réseau l'autorisera.
 
 ---
 

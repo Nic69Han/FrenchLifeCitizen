@@ -1,14 +1,11 @@
 // ---------------------------------------------------------------------------
-// Impôt sur le revenu — barème progressif avec quotient familial.
-// Les seuils du barème de référence (2024) sont réindexés sur l'IPC pour les
-// autres années, et la tranche haute peut être modulée par le curseur d'État.
+// Impôt sur le revenu — barème progressif RÉEL avec quotient familial.
+// Les tranches proviennent du barème légal daté (OpenFisca-France) propre à
+// chaque année ; aucune réindexation n'est nécessaire (les seuils sont déjà
+// ceux en vigueur). Le curseur d'État ne module que le taux de la tranche haute.
 // ---------------------------------------------------------------------------
 
-import {
-  IR_BRACKETS,
-  IR_REFERENCE_YEAR,
-  ipc,
-} from "./data";
+import { irBrackets } from "./data";
 import type { CitizenProfile, StateParams } from "./types";
 
 /** Nombre de parts fiscales selon la situation familiale et les enfants. */
@@ -23,9 +20,9 @@ export function partsFiscales(profile: CitizenProfile): number {
 }
 
 /**
- * Impôt sur le revenu annuel.
+ * Impôt sur le revenu annuel, barème réel de l'année.
  * @param revenuNetImposable revenu net imposable annuel du foyer
- * @param year année de simulation (pour réindexer les seuils)
+ * @param year année de simulation (sélectionne le barème légal)
  * @param parts nombre de parts fiscales
  * @param tauxMarginal taux de la tranche haute (curseur d'État)
  */
@@ -35,16 +32,17 @@ export function impotRevenuAnnuel(
   parts: number,
   tauxMarginal: number
 ): number {
-  const facteur = ipc(year) / ipc(IR_REFERENCE_YEAR);
+  const brackets = irBrackets(year);
+  if (brackets.length === 0) return 0;
   const quotient = revenuNetImposable / parts;
 
   let impotParPart = 0;
-  for (let i = 0; i < IR_BRACKETS.length; i++) {
-    const b = IR_BRACKETS[i];
-    const min = b.min * facteur;
-    const max = b.max === null ? Infinity : b.max * facteur;
-    // La tranche haute prend la valeur du curseur ; les autres sont fixes.
-    const rate = i === IR_BRACKETS.length - 1 ? tauxMarginal : b.rate;
+  for (let i = 0; i < brackets.length; i++) {
+    const min = brackets[i].threshold;
+    const max =
+      i + 1 < brackets.length ? brackets[i + 1].threshold : Infinity;
+    // La tranche haute prend la valeur du curseur ; les autres sont réelles.
+    const rate = i === brackets.length - 1 ? tauxMarginal : brackets[i].rate;
     if (quotient > min) {
       impotParPart += (Math.min(quotient, max) - min) * rate;
     }
