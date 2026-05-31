@@ -14,6 +14,8 @@ import {
   aplBase,
   smicBrut,
   defaultStateParams,
+  trimestresCiblesGeneration,
+  ageLegalGeneration,
 } from "./data";
 import { impotMensuel } from "./tax";
 import { cspProfile } from "./csp";
@@ -165,12 +167,21 @@ function pensionRetraite(
   year: number
 ): number {
   const salaireMensuel = salaireBrutMensuel(profile, state, year);
-  const trimestresCotises = Math.min(
-    state.trimestresRequis,
-    profile.anciennete * 4
-  );
-  const tauxLiquidation =
-    0.5 * (trimestresCotises / state.trimestresRequis);
+
+  // Durée d'assurance requise : valeur RÉELLE de la génération du profil (CNAV,
+  // par année de naissance), sauf si l'utilisateur a modifié le curseur d'État
+  // (mode "Et si ?") — auquel cas on suit son choix. On détecte la modification
+  // en comparant le curseur à la valeur par défaut de l'année simulée.
+  const birthYear = year - profile.age;
+  const trimestresGeneration = trimestresCiblesGeneration(birthYear);
+  const defautAnnee = defaultStateParams(year).trimestresRequis;
+  const trimestresRequis =
+    state.trimestresRequis === defautAnnee
+      ? trimestresGeneration
+      : state.trimestresRequis;
+
+  const trimestresCotises = Math.min(trimestresRequis, profile.anciennete * 4);
+  const tauxLiquidation = 0.5 * (trimestresCotises / trimestresRequis);
   // Salaire annuel moyen approché par le salaire courant, pondéré par le taux
   // de remplacement propre à la CSP (régime fonctionnaire favorable,
   // indépendants moins couverts…).

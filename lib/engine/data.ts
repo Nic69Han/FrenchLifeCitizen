@@ -15,6 +15,7 @@
 
 import series from "@/data/economic-series.json";
 import legal from "@/data/legal-parameters.json";
+import pension from "@/data/pension-parameters.json";
 import type { StateParams } from "./types";
 
 export const YEAR_MIN = series.meta.yearMin;
@@ -22,6 +23,29 @@ export const YEAR_MAX = series.meta.yearMax;
 export const YEARS = series.years;
 export const SOURCES = series.meta.sources;
 export const LEGAL_SOURCE = legal.meta;
+export const PENSION_SOURCE = pension.meta;
+
+// --- Paramètres de retraite réels par génération (OpenFisca-France-Pension) -
+const BIRTH_MIN = pension.meta.birthYearMin;
+const BIRTH_MAX = pension.meta.birthYearMax;
+
+function pensionByBirthYear(
+  arr: (number | null)[],
+  birthYear: number
+): number | null {
+  const clamped = Math.min(BIRTH_MAX, Math.max(BIRTH_MIN, birthYear));
+  return arr[clamped - BIRTH_MIN];
+}
+
+/** Âge légal de départ réel pour la génération née cette année-là. */
+export function ageLegalGeneration(birthYear: number): number {
+  return pensionByBirthYear(pension.ageLegal, birthYear) ?? 62;
+}
+
+/** Durée d'assurance cible (trimestres taux plein) pour la génération. */
+export function trimestresCiblesGeneration(birthYear: number): number {
+  return pensionByBirthYear(pension.trimestresCibles, birthYear) ?? 168;
+}
 
 function indexOfYear(year: number): number {
   const clamped = Math.min(YEAR_MAX, Math.max(YEAR_MIN, year));
@@ -46,10 +70,16 @@ export const ipc = (year: number) => read("ipc", year);
 export const prixCarburant = (year: number) => read("prixCarburantLitre", year);
 export const tauxCreditImmo = (year: number) => read("tauxCreditImmo", year);
 export const loyerM2 = (year: number) => read("loyerMoyenM2", year);
-export const ageLegal = (year: number) => read("ageLegalRetraite", year);
-export const trimestresRequis = (year: number) =>
-  read("trimestresRequis", year);
 export const aplBase = (year: number) => read("aplBaseMensuelle", year);
+
+/**
+ * Paramètres retraite "en vigueur" une année calendaire donnée : on prend la
+ * génération qui atteint alors l'âge légal (~62 ans avant), pour alimenter les
+ * curseurs d'État par défaut. Valeurs réelles par génération (CNAV).
+ */
+export const ageLegal = (year: number) => ageLegalGeneration(year - 62);
+export const trimestresRequis = (year: number) =>
+  trimestresCiblesGeneration(year - 62);
 
 // --- Paramètres légaux réels (OpenFisca-France) ----------------------------
 export const smicBrut = (year: number) => readLegal("smicBrutMensuel", year);

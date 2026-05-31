@@ -62,11 +62,14 @@ lib/
   format.ts             Formatage € / % / nombres en français
 data/
   legal-parameters.json PARAMÈTRES LÉGAUX RÉELS (SMIC, barème IR par année, TVA,
-                        RSA, allocations) ingérés depuis OpenFisca-France
-  economic-series.json  Séries statistiques (IPC, carburant, loyers, cotisations,
-                        retraite) — ordres de grandeur, non officiels (cf. ci-dessous)
+                        RSA, allocations, cotisations, PSS) — OpenFisca-France
+  pension-parameters.json PARAMÈTRES RETRAITE RÉELS par génération (âge légal,
+                        trimestres) — OpenFisca-France-Pension, réforme 2023 incluse
+  economic-series.json  Séries statistiques (IPC, carburant, loyers, crédit, APL)
+                        — ordres de grandeur, non officiels (cf. ci-dessous)
 scripts/
-  ingest-openfisca.ts   Régénère legal-parameters.json depuis OpenFisca (npm run ingest)
+  ingest-openfisca.ts   Régénère legal-parameters.json (npm run ingest)
+  ingest-pension.ts     Régénère pension-parameters.json (npm run ingest:pension)
 ```
 
 ### Stack
@@ -115,24 +118,28 @@ plan : traçabilité et pédagogie).
 
 ### Sur les données — deux niveaux
 
-**1. Paramètres légaux RÉELS** (`data/legal-parameters.json`)
-SMIC, barème de l'impôt sur le revenu (par année), TVA, RSA et allocations
-familiales proviennent d'[**OpenFisca-France**](https://github.com/openfisca/openfisca-france),
-le moteur open-source qui encode le droit fiscal et social français : chaque
-valeur y est **datée et sourcée** (références JO / Légifrance / décrets). Le
-fichier est régénérable, commit OpenFisca épinglé pour la reproductibilité :
+**1. Paramètres légaux RÉELS** (`data/legal-parameters.json` + `data/pension-parameters.json`)
+SMIC, barème de l'impôt sur le revenu (par année), TVA, RSA, allocations
+familiales, cotisations salariales et plafond Sécu proviennent
+d'[**OpenFisca-France**](https://github.com/openfisca/openfisca-france) ; l'âge
+légal de départ et la durée d'assurance retraite (par génération, **réforme
+2023 incluse**) d'[**OpenFisca-France-Pension**](https://github.com/openfisca/openfisca-france-pension).
+Ces dépôts encodent le droit fiscal et social français : chaque valeur y est
+**datée et sourcée** (références JO / Légifrance / décrets). Fichiers
+régénérables, commits épinglés pour la reproductibilité :
 
 ```bash
-npm run ingest   # télécharge et normalise les paramètres légaux 2000–2026
+npm run ingest           # paramètres légaux (SMIC, IR, TVA, RSA, cotisations…)
+npm run ingest:pension   # retraite par génération (âge légal, trimestres)
 ```
 
 **2. Séries statistiques** (`data/economic-series.json`)
-IPC/inflation, prix des carburants, loyers, taux de crédit, taux de cotisations
-et paramètres retraite sont des **ordres de grandeur calibrés, non officiels**.
-OpenFisca encode le *droit*, pas les *statistiques* ; et les APIs INSEE /
-data.gouv / Banque de France ne sont **pas accessibles** depuis l'environnement
-d'exécution actuel (politique réseau — `host_not_allowed`). Ces séries seront
-remplacées par l'ingestion INSEE dès que le réseau l'autorisera.
+IPC/inflation, prix des carburants, loyers, taux de crédit et APL sont des
+**ordres de grandeur calibrés, non officiels**. OpenFisca encode le *droit*, pas
+les *statistiques* ; et les APIs INSEE / data.gouv / Banque de France ne sont
+**pas accessibles** depuis l'environnement d'exécution actuel (politique réseau
+— `host_not_allowed`). Ces séries seront remplacées par l'ingestion INSEE dès
+que le réseau l'autorisera.
 
 ---
 
