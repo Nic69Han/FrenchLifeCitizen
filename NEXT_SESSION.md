@@ -107,16 +107,16 @@ données par ville, pas une série temporelle nationale unifiée. Laisser calibr
 
 ---
 
-## 4. Pistes produit (travaux sans dépendance réseau)
+## 4. Pistes produit (travaux futurs)
 
-1. **Tests + CI** — ajouter quelques tests du moteur (`lib/engine/`) : cas connus
-   (IR d'un célibataire au SMIC, pension par génération 1965 = 172 trim / 63,25 ans,
-   RSA socle), puis un workflow GitHub Actions `typecheck + build + test`.
+1. ✅ **Tests + CI** — vitest + 42 tests + workflow GitHub Actions (commit `cb260f6`).
    Voir la skill `session-start-hook` pour garantir que les tests tournent en session web.
 2. **Vue par décile** — exploiter le moteur existant pour afficher l'effet d'un
-   scénario par décile de revenu (côté `app/` + `lib/engine/`).
+   scénario par décile de revenu (côté `app/` + `lib/engine/`). Les 9 tranches INSEE
+   (D1–D9) peuvent être codées comme archétypes pré-calculés.
 3. **Robustesse ingestion** — extraire la logique commune des 3 scripts
    `ingest-*.ts` (fetch + résolution datée + écriture) dans un util partagé.
+4. **Taux crédit immo BdF** — voir §3, approche CSV ODS (avec timeout >60s).
 
 ---
 
