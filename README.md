@@ -70,6 +70,8 @@ data/
 scripts/
   ingest-openfisca.ts   Régénère legal-parameters.json (npm run ingest)
   ingest-pension.ts     Régénère pension-parameters.json (npm run ingest:pension)
+  ingest-insee.ts       Remplace les séries d'economic-series.json par les séries
+                        INSEE réelles (npm run ingest:insee) — nécessite le réseau
 ```
 
 ### Stack
@@ -138,8 +140,14 @@ IPC/inflation, prix des carburants, loyers, taux de crédit et APL sont des
 **ordres de grandeur calibrés, non officiels**. OpenFisca encode le *droit*, pas
 les *statistiques* ; et les APIs INSEE / data.gouv / Banque de France ne sont
 **pas accessibles** depuis l'environnement d'exécution actuel (politique réseau
-— `host_not_allowed`). Ces séries seront remplacées par l'ingestion INSEE dès
-que le réseau l'autorisera.
+— `host_not_allowed`).
+
+Le pipeline de remplacement est **déjà écrit et prêt** (`scripts/ingest-insee.ts`,
+`npm run ingest:insee`) : il interroge l'**INSEE BDM** (API SDMX), agrège en
+moyenne annuelle, rebase l'IPC en base 2000 = 100, puis fusionne le résultat
+**de façon non destructive** (une série qui échoue conserve sa valeur calibrée et
+reste marquée non officielle). Il s'activera dès qu'une session disposera de
+l'accès réseau ; fournir une clé via `INSEE_API_KEY` si l'API l'exige.
 
 ---
 

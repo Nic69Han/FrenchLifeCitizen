@@ -10,7 +10,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "ingest": "tsx scripts/ingest-openfisca.ts",
-    "ingest:pension": "tsx scripts/ingest-pension.ts"
+    "ingest:pension": "tsx scripts/ingest-pension.ts",
+    "ingest:insee": "tsx scripts/ingest-insee.ts"
   },
   "dependencies": {
     "framer-motion": "^11.3.0",
