@@ -75,10 +75,29 @@ const REGISTRY: SeriesSpec[] = [
   },
 ];
 
+// --- Parsing SDMX-XML -------------------------------------------------------
+// L'API BDM renvoie du SDMX-ML/XML par défaut. On extrait les attributs
+// TIME_PERIOD et OBS_VALUE des éléments <Obs/> avec une regex simple.
+function parseSdmxXml(text: string): Map<string, number> {
+  const out = new Map<string, number>();
+  // Cherche TIME_PERIOD avant OBS_VALUE (ordre habituel)
+  const re1 = /<Obs\s[^>]*TIME_PERIOD="([^"]+)"[^>]*OBS_VALUE="([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re1.exec(text)) !== null) {
+    const v = parseFloat(m[2]);
+    if (Number.isFinite(v)) out.set(m[1], v);
+  }
+  // Garde aussi l'ordre inverse (OBS_VALUE avant TIME_PERIOD)
+  const re2 = /<Obs\s[^>]*OBS_VALUE="([^"]+)"[^>]*TIME_PERIOD="([^"]+)"/g;
+  while ((m = re2.exec(text)) !== null) {
+    const v = parseFloat(m[1]);
+    if (Number.isFinite(v) && !out.has(m[2])) out.set(m[2], v);
+  }
+  return out;
+}
+
 // --- Parsing SDMX-JSON ------------------------------------------------------
-// L'API BDM renvoie du SDMX-JSON : les observations sont indexées par la
-// position de la période temporelle, dont les libellés (ex. "2024-03") sont dans
-// structure.dimensions.observation[].values. On reconstruit { "YYYY-MM": valeur }.
+// Fallback JSON si l'API venait à changer de format.
 interface SdmxJson {
   dataSets?: {
     series?: Record<
@@ -113,7 +132,6 @@ function parseSdmxJson(json: SdmxJson): Map<string, number> {
     }
   };
 
-  // Deux formes possibles : observations à plat, ou groupées par série.
   collect(dataSet?.observations);
   for (const s of Object.values(dataSet?.series ?? {})) collect(s.observations);
 
@@ -127,8 +145,13 @@ async function fetchInseeSeries(idbank: string): Promise<Map<string, number>> {
 
   const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`HTTP ${res.status} pour ${url}`);
-  const json = (await res.json()) as SdmxJson;
-  const monthly = parseSdmxJson(json);
+  const text = await res.text();
+  const isXml =
+    (res.headers.get("content-type") ?? "").includes("xml") ||
+    text.trimStart().startsWith("<?xml");
+  const monthly = isXml
+    ? parseSdmxXml(text)
+    : parseSdmxJson(JSON.parse(text) as SdmxJson);
   if (monthly.size === 0) throw new Error(`aucune observation parsée (${idbank})`);
   return monthly;
 }
