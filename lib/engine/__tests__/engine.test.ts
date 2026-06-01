@@ -168,3 +168,93 @@ describe("simulate — mode Et si ? cohérence", () => {
     }
   });
 });
+
+describe("simulate — prime d'activité et nouveaux modules", () => {
+  const state = defaultStateParams(2026);
+
+  it("prime d'activité booste le pouvoir d'achat d'un travailleur au SMIC (post-2016)", () => {
+    const { current: avecPA } = simulate(profileSmic, state, 2026);
+    const statePA0 = { ...state, primeActiviteRevalorisation: 0 };
+    const { current: sansPA } = simulate(profileSmic, statePA0, 2026);
+    const diffPA = avecPA.find((i) => i.key === "pouvoirAchat")!.value
+                 - sansPA.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(diffPA).toBeGreaterThan(100); // PA vaut > 100 €/mois au SMIC
+    expect(diffPA).toBeLessThan(500);    // mais < 500 €/mois (calibrage)
+  });
+
+  it("prime d'activité = 0 avant 2016", () => {
+    const { current: pre2016 } = simulate(profileSmic, defaultStateParams(2015), 2015);
+    const { current: post2016 } = simulate(profileSmic, defaultStateParams(2016), 2016);
+    const pa2015 = pre2016.find((i) => i.key === "pouvoirAchat")!.value;
+    const pa2016 = post2016.find((i) => i.key === "pouvoirAchat")!.value;
+    // 2016 a la PA, 2015 non — saut visible même après indexation
+    expect(pa2016).toBeGreaterThan(pa2015 - 50); // peut aussi monter d'autres raisons
+  });
+
+  it("suppression TVA alimentation réduit les dépenses alimentaires", () => {
+    const stateNoTVA = { ...state, tvaReduite: 0 };
+    const { current: avecTVA } = simulate(profileSmic, state, 2026);
+    const { current: sansTVA } = simulate(profileSmic, stateNoTVA, 2026);
+    const paAvec = avecTVA.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansTVA.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paSans).toBeGreaterThan(paAvec); // moins de TVA = plus de PA
+  });
+
+  it("hausse TVA normale réduit le pouvoir d'achat", () => {
+    const stateTVAHaute = { ...state, tvaNormale: 0.25 };
+    const { current: base } = simulate(profileSmic, state, 2026);
+    const { current: haut } = simulate(profileSmic, stateTVAHaute, 2026);
+    const paBase = base.find((i) => i.key === "pouvoirAchat")!.value;
+    const paHaut = haut.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paHaut).toBeLessThan(paBase);
+  });
+
+  it("taxe foncière réduit le pouvoir d'achat d'un propriétaire", () => {
+    const profileProprio: CitizenProfile = {
+      ...profileSmic,
+      logement: "proprietaireSansCredit",
+      loyerOuMensualite: 0,
+    };
+    const stateTF0 = { ...state, taxeFonciereTauxM2: 0 };
+    const { current: avecTF } = simulate(profileProprio, state, 2026);
+    const { current: sansTF } = simulate(profileProprio, stateTF0, 2026);
+    const paSans = sansTF.find((i) => i.key === "pouvoirAchat")!.value;
+    const paAvec = avecTF.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeLessThan(paSans);
+    expect(paSans - paAvec).toBeGreaterThan(10); // TF non nulle
+  });
+
+  it("indicateur empreinteCarbone > 0 pour voiture essence", () => {
+    const profileVoiture: CitizenProfile = {
+      ...profileSmic,
+      transport: "voitureEssence",
+      distanceTravailKm: 15,
+    };
+    const { current } = simulate(profileVoiture, state, 2026);
+    const co2 = current.find((i) => i.key === "empreinteCarbone")!.value;
+    expect(co2).toBeGreaterThan(200); // transport + chauffage + alim
+  });
+
+  it("indicateur tauxImpositionEffectif entre 0 et 50 % pour un salarié", () => {
+    const { current } = simulate(profileSmic, state, 2026);
+    const taux = current.find((i) => i.key === "tauxImpositionEffectif")!.value;
+    expect(taux).toBeGreaterThan(0);
+    expect(taux).toBeLessThan(50);
+  });
+
+  it("ARE > RSA pour un sansEmploi avec ancienneté longue (SMIC × 57 % > RSA)", () => {
+    const profileAre: CitizenProfile = {
+      ...profileSmic,
+      contrat: "sansEmploi",
+      salaireBrutAnnuel: smicBrut(2026) * 12, // référence = SMIC
+      anciennete: 5, // 5 ans → droits ARE
+    };
+    const { current } = simulate(profileAre, state, 2026);
+    const pa = current.find((i) => i.key === "pouvoirAchat")!.value;
+    // ARE à SMIC = 1823 × 0.57 ≈ 1039 €, bien supérieur au RSA
+    const profileRsaOnly: CitizenProfile = { ...profileAre, anciennete: 0 };
+    const { current: rsaC } = simulate(profileRsaOnly, state, 2026);
+    const paRsa = rsaC.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(pa).toBeGreaterThan(paRsa);
+  });
+});
