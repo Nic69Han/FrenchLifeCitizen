@@ -85,6 +85,8 @@ export const ARCHETYPES: Archetype[] = [
       budgetAlimentaireMensuel: 600,
       abonnementsMensuels: 110,
       loisirsMensuels: 350,
+      parentIsole: true,              // divorcée, garde principale de son enfant
+      capitalFinancierMensuel: 250,   // PEA + assurance-vie cadre tech
     },
   },
   {
@@ -111,6 +113,7 @@ export const ARCHETYPES: Archetype[] = [
       budgetAlimentaireMensuel: 320,
       abonnementsMensuels: 65,
       loisirsMensuels: 150,
+      heuresSup: 15,                  // BTP = heures sup fréquentes sur chantier
     },
   },
 ];

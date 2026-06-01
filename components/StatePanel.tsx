@@ -20,9 +20,12 @@ const SLIDERS: SliderDef[] = [
   { key: "tauxMarginalIR", label: "Taux marginal IR (tranche haute)", min: 0, max: 0.75, step: 0.01, display: (v) => pct(v * 100, 0), groupe: "Fiscalité" },
   { key: "tvaNormale", label: "TVA normale (hors alim.)", min: 0.05, max: 0.25, step: 0.005, display: (v) => pct(v * 100, 1), groupe: "Fiscalité" },
   { key: "tvaReduite", label: "TVA alimentation & médicaments", min: 0, max: 0.10, step: 0.005, display: (v) => pct(v * 100, 1), groupe: "Fiscalité" },
+  { key: "tauxPFU", label: "Flat tax revenus du capital (PFU)", min: 0, max: 0.50, step: 0.01, display: (v) => pct(v * 100, 0), groupe: "Fiscalité" },
   // Social & Travail
   { key: "smicBrutMensuel", label: "SMIC brut mensuel", min: 1000, max: 2500, step: 10, display: (v) => euro(v), groupe: "Social & Travail" },
   { key: "tauxCotisationsSalariales", label: "Cotisations salariales", min: 0, max: 0.4, step: 0.005, display: (v) => pct(v * 100, 1), groupe: "Social & Travail" },
+  { key: "tauxCotisationsPatronales", label: "Cotisations patronales", min: 0, max: 0.60, step: 0.01, display: (v) => pct(v * 100, 0), groupe: "Social & Travail" },
+  { key: "exonerationHeuresSup", label: "Exonération IR heures sup", min: 0, max: 1, step: 0.1, display: (v) => `${Math.round(v * 100)} %`, groupe: "Social & Travail" },
   { key: "primeActiviteRevalorisation", label: "Prime d'activité (niveau)", min: 0, max: 2, step: 0.05, display: (v) => `${Math.round(v * 100)} %`, groupe: "Social & Travail" },
   { key: "allocFamilialesParEnfant", label: "Allocations familiales / enfant", min: 0, max: 400, step: 5, display: (v) => euro(v), groupe: "Social & Travail" },
   { key: "rsaSocle", label: "RSA socle", min: 0, max: 1200, step: 10, display: (v) => euro(v), groupe: "Social & Travail" },

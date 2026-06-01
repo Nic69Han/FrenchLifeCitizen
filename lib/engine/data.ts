@@ -137,17 +137,22 @@ export function defaultStateParams(year: number): StateParams {
     tauxCotisationsSalariales: tauxCotisations(year),
     tauxMarginalIR: tauxMarginalHaut(year),
     tvaNormale: tvaNormale(year),
-    tvaReduite: 0.055,                 // TVA alimentation constante depuis 2000
+    tvaReduite: 0.055,                  // TVA alimentation constante depuis 2000
     smicBrutMensuel: smicBrut(year),
     allocFamilialesParEnfant: Math.round(allocFamillesDeuxEnfants(year) / 2),
     aplMultiplicateur: 1,
-    primeActiviteRevalorisation: 1,    // PA réelle (1 = valeur légale)
+    primeActiviteRevalorisation: 1,     // PA réelle (1 = valeur légale)
     ageLegalRetraite: ageLegal(year),
     trimestresRequis: trimestresRequis(year),
     taxeCarbone: year >= 2014 ? 44 : 0,
     ticpe: 0,
     rsaSocle: rsaSocle(year),
     tauxRemboursementSante: 0.7,
-    taxeFonciereTauxM2: 12,            // ~12 €/m²/an, taux national moyen 2026
+    taxeFonciereTauxM2: 12,             // ~12 €/m²/an, taux national moyen 2026
+    tauxCotisationsPatronales: 0.42,    // ~42 % cotisations patronales (hors allègements Fillon)
+    // Loi TEPA 2007-2011 puis supprimée 2012-2018, rétablie par Macron 2019 (cap 7 500 €/an)
+    exonerationHeuresSup:
+      year >= 2019 || (year >= 2007 && year < 2012) ? 1 : 0,
+    tauxPFU: 0.30,                      // PFU créé en 2018 (12,8 % IR + 17,2 % prélèv. soc.)
   };
 }

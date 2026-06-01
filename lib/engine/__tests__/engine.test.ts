@@ -47,9 +47,9 @@ const profileRetraite: CitizenProfile = {
 describe("simulate — structure de sortie", () => {
   const state = defaultStateParams(2026);
 
-  it("retourne 7 indicateurs pour l'année sélectionnée", () => {
+  it("retourne 9 indicateurs pour l'année sélectionnée", () => {
     const { current } = simulate(profileSmic, state, 2026);
-    expect(current).toHaveLength(7);
+    expect(current).toHaveLength(9);
     const keys = current.map((i) => i.key);
     expect(keys).toContain("pouvoirAchat");
     expect(keys).toContain("tauxEffortLogement");
@@ -58,6 +58,8 @@ describe("simulate — structure de sortie", () => {
     expect(keys).toContain("scorePrecarite");
     expect(keys).toContain("tauxImpositionEffectif");
     expect(keys).toContain("empreinteCarbone");
+    expect(keys).toContain("capaciteEpargne");
+    expect(keys).toContain("coutTravailEmployeur");
   });
 
   it("timeline couvre 27 années (2000–2026)", () => {
@@ -165,7 +167,110 @@ describe("simulate — mode Et si ? cohérence", () => {
       expect(Number.isFinite(r.scorePrecarite)).toBe(true);
       expect(r.scorePrecarite).toBeGreaterThanOrEqual(0);
       expect(r.scorePrecarite).toBeLessThanOrEqual(100);
+      expect(Number.isFinite(r.capaciteEpargne)).toBe(true);
+      expect(r.capaciteEpargne).toBeGreaterThanOrEqual(0);
+      expect(Number.isFinite(r.coutTravailEmployeur)).toBe(true);
     }
+  });
+});
+
+describe("simulate — nouveaux paramètres profil", () => {
+  const state = defaultStateParams(2026);
+
+  it("temps partiel (50 %) réduit le pouvoir d'achat par rapport au temps plein", () => {
+    const profileMiTemps: CitizenProfile = { ...profileSmic, tauxActivite: 0.5 };
+    const { current: plein } = simulate(profileSmic, state, 2026);
+    const { current: miTemps } = simulate(profileMiTemps, state, 2026);
+    const paPlein = plein.find((i) => i.key === "pouvoirAchat")!.value;
+    const paMiTemps = miTemps.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paMiTemps).toBeLessThan(paPlein);
+  });
+
+  it("heures supplémentaires augmentent le pouvoir d'achat", () => {
+    const profileHS: CitizenProfile = { ...profileSmic, heuresSup: 10 };
+    const { current: sansHS } = simulate(profileSmic, state, 2026);
+    const { current: avecHS } = simulate(profileHS, state, 2026);
+    const paSans = sansHS.find((i) => i.key === "pouvoirAchat")!.value;
+    const paAvec = avecHS.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans);
+  });
+
+  it("suppression exonération heures sup réduit l'avantage des HS", () => {
+    const profileHS: CitizenProfile = { ...profileSmic, heuresSup: 10 };
+    const stateNoExo = { ...state, exonerationHeuresSup: 0 };
+    const { current: avecExo } = simulate(profileHS, state, 2026);
+    const { current: sansExo } = simulate(profileHS, stateNoExo, 2026);
+    const paAvecExo = avecExo.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSansExo = sansExo.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paSansExo).toBeLessThanOrEqual(paAvecExo);
+  });
+
+  it("revenus du capital augmentent le pouvoir d'achat (net PFU)", () => {
+    const profileCapital: CitizenProfile = {
+      ...profileSmic,
+      capitalFinancierMensuel: 500,
+    };
+    const { current: avecCapital } = simulate(profileCapital, state, 2026);
+    const { current: sansCapital } = simulate(profileSmic, state, 2026);
+    const paAvec = avecCapital.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansCapital.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans + 300); // 500 × (1-30%) = 350€ net
+  });
+
+  it("hausse PFU réduit le revenu du capital", () => {
+    const profileCapital: CitizenProfile = {
+      ...profileSmic,
+      capitalFinancierMensuel: 500,
+    };
+    const statePFUHaut = { ...state, tauxPFU: 0.45 };
+    const { current: pfuNormal } = simulate(profileCapital, state, 2026);
+    const { current: pfuHaut } = simulate(profileCapital, statePFUHaut, 2026);
+    const paNormal = pfuNormal.find((i) => i.key === "pouvoirAchat")!.value;
+    const paHaut = pfuHaut.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paHaut).toBeLessThan(paNormal);
+  });
+
+  it("parent isolé bénéficie du RSA majoré (+25 %) en situation sans emploi", () => {
+    const profileIsole: CitizenProfile = {
+      ...profileSmic,
+      contrat: "sansEmploi",
+      salaireBrutAnnuel: 0,
+      anciennete: 0,
+      nbEnfants: 1,
+      parentIsole: true,
+    };
+    const profileNonIsole: CitizenProfile = {
+      ...profileIsole,
+      parentIsole: false,
+    };
+    const { current: isole } = simulate(profileIsole, state, 2026);
+    const { current: nonIsole } = simulate(profileNonIsole, state, 2026);
+    const paIsole = isole.find((i) => i.key === "pouvoirAchat")!.value;
+    const paNonIsole = nonIsole.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paIsole).toBeGreaterThan(paNonIsole);
+  });
+
+  it("coût total employeur > salaire brut (cotisations patronales)", () => {
+    const { current } = simulate(profileSmic, state, 2026);
+    const cout = current.find((i) => i.key === "coutTravailEmployeur")!.value;
+    const smic = smicBrut(2026);
+    expect(cout).toBeGreaterThan(smic); // salaire brut seul
+    expect(cout).toBeLessThan(smic * 2); // borne haute raisonnable
+  });
+
+  it("hausse cotisations patronales augmente le coût travail", () => {
+    const stateHautPat = { ...state, tauxCotisationsPatronales: 0.55 };
+    const { current: base } = simulate(profileSmic, state, 2026);
+    const { current: haut } = simulate(profileSmic, stateHautPat, 2026);
+    const coutBase = base.find((i) => i.key === "coutTravailEmployeur")!.value;
+    const coutHaut = haut.find((i) => i.key === "coutTravailEmployeur")!.value;
+    expect(coutHaut).toBeGreaterThan(coutBase);
+  });
+
+  it("capacité d'épargne est nulle ou positive", () => {
+    const { current } = simulate(profileSmic, state, 2026);
+    const epargne = current.find((i) => i.key === "capaciteEpargne")!.value;
+    expect(epargne).toBeGreaterThanOrEqual(0);
   });
 });
 

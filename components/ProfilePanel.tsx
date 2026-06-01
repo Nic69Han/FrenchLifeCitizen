@@ -161,6 +161,20 @@ export function ProfilePanel() {
           />
         </Field>
 
+        {profile.nbEnfants > 0 && (
+          <label className="flex cursor-pointer items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={profile.parentIsole ?? false}
+              onChange={(e) => setProfile({ parentIsole: e.target.checked })}
+              className="h-3.5 w-3.5 accent-or"
+            />
+            <span className="text-republique/70">
+              Parent isolé — RSA majoré +25 %, PA bonifiée
+            </span>
+          </label>
+        )}
+
         <Section title="Emploi & revenus" />
 
         <Field label="Catégorie socioprofessionnelle">
@@ -204,6 +218,49 @@ export function ProfilePanel() {
             />
           </Field>
         </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field
+            label={`Taux d'activité — ${Math.round((profile.tauxActivite ?? 1) * 100)} %`}
+          >
+            <input
+              type="range"
+              min={0.2}
+              max={1}
+              step={0.1}
+              value={profile.tauxActivite ?? 1}
+              onChange={(e) => setProfile({ tauxActivite: +e.target.value })}
+              className="w-full"
+            />
+          </Field>
+          <Field label={`Heures sup — ${profile.heuresSup ?? 0} h/mois`}>
+            <input
+              type="range"
+              min={0}
+              max={40}
+              step={1}
+              value={profile.heuresSup ?? 0}
+              onChange={(e) => setProfile({ heuresSup: +e.target.value })}
+              className="w-full"
+            />
+          </Field>
+        </div>
+
+        <Field
+          label={`Revenus du capital — ${euro(profile.capitalFinancierMensuel ?? 0)}/mois`}
+        >
+          <input
+            type="range"
+            min={0}
+            max={3000}
+            step={50}
+            value={profile.capitalFinancierMensuel ?? 0}
+            onChange={(e) =>
+              setProfile({ capitalFinancierMensuel: +e.target.value })
+            }
+            className="w-full"
+          />
+        </Field>
 
         <Section title="Logement" />
 

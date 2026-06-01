@@ -57,24 +57,18 @@ function salaireBrutMensuel(
 
   // Poids du SMIC dans la formation du salaire : ~1 au niveau du SMIC,
   // décroissant linéairement vers un plancher de 0.1 à partir de 3× SMIC.
-  // (Le poids tombe plus vite que 1/multiple, pour que la sensibilité absolue
-  //  au SMIC soit nettement plus forte chez les bas salaires que chez un cadre.)
   const poidsSmic = Math.max(0.1, Math.min(1, 1 - 0.45 * (multipleSmic - 1)));
 
-  // Le salaire 2026 est réparti entre une composante indexée SMIC et une
-  // composante indexée prix, puis on applique l'évolution de chaque indice.
   const partSmic =
     salaire2026 * poidsSmic * (state.smicBrutMensuel / smic2026);
   const partPrix = salaire2026 * (1 - poidsSmic) * (ipc(year) / ipc(2026));
 
-  // Effet de carrière : le profil décrit la situation en 2026 (à son âge
-  // actuel). Les années passées, la personne était plus jeune et plus bas sur
-  // sa courbe de carrière — pente d'autant plus marquée que la CSP est
-  // "ascendante" (forte pour un cadre, quasi plate pour un ouvrier).
   const pente = cspProfile(profile.csp).penteCarriere;
   const facteurCarriere = Math.pow(1 + pente, year - 2026);
 
-  return (partSmic + partPrix) * facteurCarriere;
+  // Temps partiel : tauxActivite réduit le salaire brut proportionnellement.
+  const tauxAct = profile.tauxActivite ?? 1;
+  return (partSmic + partPrix) * facteurCarriere * tauxAct;
 }
 
 /** Coût mensuel du transport selon le mode et la distance. */
@@ -152,6 +146,7 @@ function aidesLogement(
  * Prime d'activité — calibrée CNAF (~200 €/mois au SMIC pour un célibataire
  * sans enfants en 2026). Profil en triangle : monte de RSA au SMIC, redescend
  * jusqu'au seuil de sortie (~2× SMIC). Non versée aux retraités/chômeurs.
+ * Parent isolé : majoration d'isolement ~+80 €/mois (arrêté CNAF).
  */
 function primeActivite(
   profile: CitizenProfile,
@@ -165,22 +160,30 @@ function primeActivite(
 
   const smicNet = state.smicBrutMensuel * (1 - state.tauxCotisationsSalariales);
   const enCouple = ["marie", "couple"].includes(profile.situationFamiliale);
+  const isParentIsole = (profile.parentIsole ?? false) && profile.nbEnfants > 0;
   const coeffCompo = 1 + (enCouple ? 0.5 : 0) + profile.nbEnfants * 0.15;
   const maxPA = base * coeffCompo * state.primeActiviteRevalorisation;
-  // Seuil de sortie : ~2× SMIC pour célibataire, majoré pour familles
   const seuil = smicNet * (2.0 + 0.5 * (coeffCompo - 1));
 
   if (revenuNetAvantImpot <= state.rsaSocle) return 0;
   if (revenuNetAvantImpot >= seuil) return 0;
 
+  let paMontant: number;
   if (revenuNetAvantImpot <= smicNet) {
-    // Phase montante : RSA → SMIC
-    return Math.max(0, maxPA * (revenuNetAvantImpot - state.rsaSocle) /
+    paMontant = Math.max(0, maxPA * (revenuNetAvantImpot - state.rsaSocle) /
       Math.max(1, smicNet - state.rsaSocle));
+  } else {
+    paMontant = Math.max(0, maxPA * (seuil - revenuNetAvantImpot) /
+      Math.max(1, seuil - smicNet));
   }
-  // Phase descendante : SMIC → seuil
-  return Math.max(0, maxPA * (seuil - revenuNetAvantImpot) /
-    Math.max(1, seuil - smicNet));
+
+  // Majoration isolement parent isolé : ~80 €/mois de bonus PA (CNAF)
+  const majorationIsole =
+    isParentIsole && !enCouple && paMontant > 0
+      ? 80 * state.primeActiviteRevalorisation
+      : 0;
+
+  return paMontant + majorationIsole;
 }
 
 /**
@@ -338,21 +341,38 @@ function computeYear(
     depensesContraintes: number;
     pa: number;
     co2: number;
+    hsSup: number;
+    netCapital: number;
   };
 } {
   // --- Revenu d'activité ---
   // Pour les sans-emploi, le revenu d'activité est 0 ; les allocations
   // (ARE ou RSA) sont comptées uniquement dans les aides pour éviter le
-  // double-comptage.
-  const revenuBrutMensuel =
+  // double-comptage. Le salaire brut intègre déjà le tauxActivite.
+  const baseSalaire =
     profile.contrat === "sansEmploi"
       ? 0
       : profile.contrat === "retraite"
       ? pensionRetraite(profile, state, year)
       : salaireBrutMensuel(profile, state, year);
 
-  // Les indépendants ont un taux de cotisations effectif plus faible sur leur
-  // rémunération que les salariés (assiette et régime différents) ~ -30 %.
+  // Heures supplémentaires (CDI/CDD/intérim, cap 7 500 €/an exonérable).
+  // Majoration légale : 25 % pour les 8 premières h/sem, 50 % au-delà.
+  // Depuis 2019 (Macron), exonération IR totale ; supprimée 2012-2018.
+  const hsSup = (() => {
+    const n = profile.heuresSup ?? 0;
+    if (n <= 0 || !["cdi", "cdd", "interim"].includes(profile.contrat)) {
+      return { brut: 0, exonere: 0 };
+    }
+    const tauxHoraire = baseSalaire / (151.67 * (profile.tauxActivite ?? 1));
+    const majoration = n <= 8 ? 1.25 : 1.50;
+    const brutHS = Math.min(n * tauxHoraire * majoration, 625); // 7 500 €/an ÷ 12
+    return { brut: brutHS, exonere: brutHS * state.exonerationHeuresSup };
+  })();
+
+  const revenuBrutMensuel = baseSalaire + hsSup.brut;
+
+  // Les indépendants ont un taux de cotisations effectif plus faible (~−30 %).
   const partIndep = cspProfile(profile.csp).partIndependant;
   const tauxCotisEffectif =
     state.tauxCotisationsSalariales * (1 - 0.3 * partIndep);
@@ -362,10 +382,18 @@ function computeYear(
       : revenuBrutMensuel * tauxCotisEffectif;
   const revenuNetAvantImpot = revenuBrutMensuel - cotisations;
 
+  // Base imposable IR = revenu net − fraction exonérée nette des heures sup
+  const exonereIRNet = hsSup.exonere * (1 - tauxCotisEffectif);
+  const baseIRAnnuel = Math.max(0, revenuNetAvantImpot - exonereIRNet) * 12;
   const ir =
     profile.contrat === "sansEmploi"
       ? 0
-      : impotMensuel(profile, revenuNetAvantImpot * 12, year, state);
+      : impotMensuel(profile, baseIRAnnuel, year, state);
+
+  // --- Revenus du capital ---
+  // PFU 30 % (12,8 % IR + 17,2 % prélèv. soc.) depuis 2018. Curseur tauxPFU.
+  const revCapital = profile.capitalFinancierMensuel ?? 0;
+  const netCapital = revCapital > 0 ? Math.round(revCapital * (1 - state.tauxPFU)) : 0;
 
   // --- Aides sociales ---
   const aplx = aidesLogement(profile, revenuNetAvantImpot, year, state);
@@ -374,25 +402,31 @@ function computeYear(
       ? state.allocFamilialesParEnfant * profile.nbEnfants
       : 0;
 
-  // ARE (allocation retour emploi) ou RSA selon ancienneté et situation
+  // AAH (Allocation Adulte Handicapé) pour les personnes en situation de handicap
+  const aah = profile.sante === "handicap" && profile.contrat === "sansEmploi"
+    ? Math.max(0, state.rsaSocle * 1.5 - revenuNetAvantImpot) // AAH ~ 1,5× RSA, dégressif
+    : 0;
+
+  // ARE (allocation retour emploi) ou RSA selon ancienneté et situation.
+  // Parent isolé : RSA majoré +25 % (allocation de soutien familial incluse).
+  const isParentIsole = (profile.parentIsole ?? false) && profile.nbEnfants > 0;
   const chomageAide = (() => {
     if (profile.contrat !== "sansEmploi") return 0;
+    const rsaMajore = state.rsaSocle * (isParentIsole ? 1.25 : 1);
     const moisAnciennete = profile.anciennete * 12;
     if (moisAnciennete >= 4) {
-      // ARE : ~57 % du salaire brut journalier de référence
       const areMonthly = (profile.salaireBrutAnnuel / 12) * 0.57;
-      return Math.max(areMonthly, state.rsaSocle);
+      return Math.max(areMonthly, rsaMajore);
     }
-    return state.rsaSocle;
+    return rsaMajore;
   })();
 
   // Prime d'activité pour les travailleurs à revenus modestes
   const pa = primeActivite(profile, revenuNetAvantImpot, year, state);
 
-  const aides = aplx + alloc + chomageAide + pa;
+  const aides = aplx + alloc + chomageAide + pa + aah;
 
   // --- Dépenses contraintes ---
-  // Loyer : on respecte la saisie utilisateur si fournie, sinon estimation.
   const loyer =
     profile.loyerOuMensualite > 0
       ? profile.loyerOuMensualite * (ipc(year) / ipc(2026))
@@ -402,9 +436,6 @@ function computeYear(
 
   const transport = coutTransport(profile, year, state);
 
-  // TVA : correction des prix de consommation selon les taux en vigueur.
-  // TVA normale s'applique aux abonnements/loisirs ; TVA réduite (5.5 %) à
-  // l'alimentation et à l'énergie résidentielle (gaz, électricité).
   const tvaNormRef = tvaNormHist(year) || 0.20;
   const facteurTVANorm = (1 + state.tvaNormale) / (1 + tvaNormRef);
   const facteurTVARed  = (1 + state.tvaReduite) / 1.055;
@@ -423,9 +454,8 @@ function computeYear(
     loyer + transport + energie + alimentation + santeRAC
     + abonnements + mutuelle + tf + garde;
 
-  // `aides` inclut APL, allocations familiales, ARE/RSA et prime d'activité.
   const pouvoirAchat =
-    revenuNetAvantImpot - ir + aides - depensesContraintes;
+    revenuNetAvantImpot - ir + aides + netCapital - depensesContraintes;
 
   const tauxEffortLogement =
     revenuNetAvantImpot > 0 ? (loyer / revenuNetAvantImpot) * 100 : 0;
@@ -441,9 +471,8 @@ function computeYear(
   if (resteAVivre < SEUIL_PAUVRETE_2026 * (ipc(year) / ipc(2026)))
     score += 35;
   if (profile.sante === "ald" || profile.sante === "handicap") score += 15;
+  if (isParentIsole) score += 5; // vulnérabilité supplémentaire parent isolé
 
-  // Composante "emploi" pondérée par le risque propre à la CSP : un statut
-  // précaire pèse plus lourd pour un ouvrier que pour un fonctionnaire.
   const risque = cspProfile(profile.csp).risqueEmploi;
   let scoreEmploi = 0;
   if (profile.contrat === "sansEmploi") scoreEmploi += 20;
@@ -451,7 +480,6 @@ function computeYear(
   scoreEmploi += Math.max(0, (risque - 1) * 10);
   score += scoreEmploi * risque;
 
-  // Vulnérabilité liée à l'âge : entrée dans la vie active et fin de carrière.
   if (profile.contrat !== "retraite") {
     if (profile.age < 25) score += 6;
     else if (profile.age >= 55) score += 5;
@@ -467,6 +495,16 @@ function computeYear(
 
   const co2 = empreinteCarbone(profile);
 
+  // Capacité d'épargne : montant disponible après toutes dépenses et loisirs
+  const capaciteEpargne = Math.max(0, Math.round(resteAVivre));
+
+  // Coût total du travail pour l'employeur (brut salarié × (1 + patronales))
+  // Hors allègements Fillon — le curseur tauxCotisationsPatronales les pilote.
+  const coutTravailEmployeur =
+    profile.contrat === "sansEmploi" || profile.contrat === "retraite"
+      ? 0
+      : Math.round(revenuBrutMensuel * (1 + state.tauxCotisationsPatronales));
+
   return {
     result: {
       year,
@@ -477,6 +515,8 @@ function computeYear(
       scorePrecarite,
       tauxImpositionEffectif,
       empreinteCarbone: co2,
+      capaciteEpargne,
+      coutTravailEmployeur,
     },
     details: {
       revenuBrutMensuel,
@@ -486,6 +526,8 @@ function computeYear(
       depensesContraintes,
       pa,
       co2,
+      hsSup: hsSup.brut,
+      netCapital,
     },
   };
 }
@@ -544,7 +586,11 @@ export function simulate(
   const { result, details } = computeYear(profile, state, selectedYear);
 
   const paStr = details.pa > 0
-    ? ` dont prime d'activité +${Math.round(details.pa)} €` : "";
+    ? ` dont PA +${Math.round(details.pa)} €` : "";
+  const hsStr = details.hsSup > 0
+    ? ` +HS ${Math.round(details.hsSup)} €` : "";
+  const capStr = details.netCapital > 0
+    ? ` +capital ${details.netCapital} €` : "";
   const current: Indicator[] = [
     {
       key: "pouvoirAchat",
@@ -553,12 +599,12 @@ export function simulate(
       unit: "€/mois",
       goodDirection: "up",
       formula:
-        `Revenu net (${Math.round(details.revenuBrutMensuel)} − ${Math.round(
+        `Revenu net (${Math.round(details.revenuBrutMensuel)}${hsStr} − ${Math.round(
           details.cotisations
         )} cotis.) ` +
-        `− IR (${Math.round(details.ir)}) + aides (${Math.round(details.aides)}${paStr}) ` +
-        `− charges (${Math.round(details.depensesContraintes)} : loyer, transport, énergie, ` +
-        `alimentation, santé, mutuelle, taxe foncière, garde).`,
+        `− IR (${Math.round(details.ir)}) + aides (${Math.round(details.aides)}${paStr})` +
+        `${capStr} − charges (${Math.round(details.depensesContraintes)} : loyer, ` +
+        `transport, énergie, alimentation, santé, mutuelle, taxe foncière, garde).`,
     },
     {
       key: "tauxEffortLogement",
@@ -598,7 +644,7 @@ export function simulate(
       goodDirection: "down",
       formula:
         "Composite : taux d'effort logement élevé, reste à vivre sous le seuil " +
-        "de pauvreté, ALD/handicap, situation d'emploi. 0 = confortable, 100 = très précaire.",
+        "de pauvreté, ALD/handicap, situation d'emploi, parent isolé. 0 = confortable, 100 = très précaire.",
     },
     {
       key: "tauxImpositionEffectif",
@@ -608,7 +654,7 @@ export function simulate(
       goodDirection: "down",
       formula:
         "(Cotisations salariales + impôt sur le revenu) ÷ revenu brut × 100. " +
-        "Mesure la part du revenu prélevée directement par les prélèvements obligatoires.",
+        "Mesure la part du revenu prélevée directement. Heures sup exonérées réduisent la base IR.",
     },
     {
       key: "empreinteCarbone",
@@ -618,7 +664,28 @@ export function simulate(
       goodDirection: "down",
       formula:
         "Transport (mode, distance) + chauffage (énergie, surface) + alimentation " +
-        "(budget × facteur ADEME). Indirectement liée à la taxe carbone et à la TICPE.",
+        "(budget × facteur ADEME). Liée à la taxe carbone et à la TICPE.",
+    },
+    {
+      key: "capaciteEpargne",
+      label: "Capacité d'épargne",
+      value: result.capaciteEpargne,
+      unit: "€/mois",
+      goodDirection: "up",
+      formula:
+        "max(0, reste à vivre). Montant potentiellement disponible pour l'épargne " +
+        "une fois loisirs déduits. Nul si le budget est déficitaire.",
+    },
+    {
+      key: "coutTravailEmployeur",
+      label: "Coût travail total employeur",
+      value: result.coutTravailEmployeur,
+      unit: "€/mois",
+      goodDirection: "neutral",
+      formula:
+        `Brut salarié × (1 + cotisations patronales). Hors allègements Fillon ` +
+        `(qui réduisent quasi à zéro les patronales au niveau du SMIC). ` +
+        `Curseur tauxCotisationsPatronales = ${Math.round(state.tauxCotisationsPatronales * 100)} %.`,
     },
   ];
 
