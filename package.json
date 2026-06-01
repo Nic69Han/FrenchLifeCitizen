@@ -12,6 +12,7 @@
     "ingest": "tsx scripts/ingest-openfisca.ts",
     "ingest:pension": "tsx scripts/ingest-pension.ts",
     "ingest:insee": "tsx scripts/ingest-insee.ts",
+    "ingest:eurostat": "tsx scripts/ingest-eurostat.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

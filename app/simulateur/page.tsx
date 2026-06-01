@@ -9,6 +9,7 @@ import { ProfilePanel } from "@/components/ProfilePanel";
 import { StatePanel } from "@/components/StatePanel";
 import { IndicatorCard } from "@/components/IndicatorCard";
 import { TimelineChart } from "@/components/TimelineChart";
+import { MacroPanel } from "@/components/MacroPanel";
 
 export default function Simulateur() {
   const { profile, state, baseline, year, etSiActif, setYear } = useSim();
@@ -106,9 +107,14 @@ export default function Simulateur() {
           />
         </section>
 
-        {/* Panneau droit : leviers d'État */}
-        <aside className="rounded-2xl glass p-4 lg:max-h-[calc(100vh-110px)] lg:sticky lg:top-[72px]">
-          <StatePanel />
+        {/* Panneau droit : leviers d'État + finances publiques */}
+        <aside className="space-y-4 lg:max-h-[calc(100vh-110px)] lg:sticky lg:top-[72px] lg:overflow-y-auto">
+          <div className="rounded-2xl glass p-4">
+            <StatePanel />
+          </div>
+          <div className="rounded-2xl glass p-4">
+            <MacroPanel state={state} year={year} etSiActif={etSiActif} />
+          </div>
         </aside>
       </div>
     </main>
