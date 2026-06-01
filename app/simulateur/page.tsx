@@ -10,6 +10,7 @@ import { StatePanel } from "@/components/StatePanel";
 import { IndicatorCard } from "@/components/IndicatorCard";
 import { TimelineChart } from "@/components/TimelineChart";
 import { MacroPanel } from "@/components/MacroPanel";
+import { DecilePanel } from "@/components/DecilePanel";
 
 export default function Simulateur() {
   const { profile, state, baseline, year, etSiActif, setYear } = useSim();
@@ -105,6 +106,15 @@ export default function Simulateur() {
             onMetric={setMetric}
             etSiActif={etSiActif}
           />
+
+          <div className="rounded-2xl glass p-4">
+            <DecilePanel
+              baseline={baseline}
+              scenario={state}
+              year={year}
+              etSiActif={etSiActif}
+            />
+          </div>
         </section>
 
         {/* Panneau droit : leviers d'État + finances publiques */}

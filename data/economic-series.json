@@ -1,6 +1,6 @@
 {
   "meta": {
-    "description": "Séries statistiques pour FranceSim. Certaines sont désormais RÉELLES (INSEE BDM) : ipc. Les autres restent calibrées en attendant le branchement de leurs sources (Banque de France, DGEC, observatoires des loyers). Paramètres LÉGAUX : voir legal-parameters.json.",
+    "description": "Séries statistiques pour FranceSim. Certaines sont désormais RÉELLES (INSEE BDM) : ipc, tauxCreditImmo. Les autres restent calibrées en attendant le branchement de leurs sources (Banque de France, DGEC, observatoires des loyers). Paramètres LÉGAUX : voir legal-parameters.json.",
     "statut": "non_officiel_a_remplacer_par_insee",
     "yearMin": 2000,
     "yearMax": 2026,
@@ -13,9 +13,10 @@
     ],
     "note_retraite": "L'âge légal et la durée d'assurance (trimestres) ne sont plus ici : ils sont réels, par génération, dans data/pension-parameters.json (OpenFisca-France-Pension).",
     "seriesReelles": [
-      "ipc"
+      "ipc",
+      "tauxCreditImmo"
     ],
-    "derniereIngestionInsee": "2026-05-31"
+    "derniereIngestionInsee": "2026-06-01"
   },
   "years": [
     2000,
@@ -105,33 +106,33 @@
     1.78
   ],
   "tauxCreditImmo": [
-    6.5,
-    6,
-    5.5,
-    4.8,
-    4.3,
-    3.9,
-    4.1,
-    4.7,
-    5.1,
-    4.5,
-    3.8,
-    4,
-    3.5,
-    3.1,
-    2.8,
-    2.3,
-    1.9,
-    1.6,
-    1.5,
-    1.3,
-    1.25,
-    1.1,
-    1.8,
-    3.9,
-    3.8,
-    3.3,
-    3.1
+    5.9,
+    5.92,
+    4.98,
+    4.07,
+    3.63,
+    3.44,
+    3.76,
+    4.57,
+    5.18,
+    3.99,
+    3.22,
+    3.52,
+    3.31,
+    2.74,
+    2.6,
+    2.1,
+    1.78,
+    1.62,
+    1.57,
+    1.41,
+    1.31,
+    1.23,
+    1.46,
+    3.13,
+    3.93,
+    3.67,
+    3.63
   ],
   "loyerMoyenM2": [
     8,

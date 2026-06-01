@@ -13,12 +13,15 @@
 // Maastricht pour la France (source : Eurostat / Commission européenne).
 // ---------------------------------------------------------------------------
 
-import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  YEAR_MIN,
+  YEAR_MAX,
+  YEARS,
+  toAlignedArray as alignedArray,
+  writeDataFile,
+} from "./ingest-utils";
 
-const YEAR_MIN = 2000;
-const YEAR_MAX = 2026;
-const YEARS = Array.from({ length: YEAR_MAX - YEAR_MIN + 1 }, (_, i) => YEAR_MIN + i);
 const EUROSTAT_BASE = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data";
 
 // ---------------------------------------------------------------------------
@@ -77,18 +80,7 @@ async function fetchEurostat(
   return (await res.json()) as EurostatDataset;
 }
 
-// ---------------------------------------------------------------------------
-// Assemblage d'un tableau aligné YEAR_MIN..YEAR_MAX
-// ---------------------------------------------------------------------------
-function toAlignedArray(series: Map<number, number>, round = 2): (number | null)[] {
-  const arr: (number | null)[] = YEARS.map((y) => {
-    const v = series.get(y);
-    return v !== undefined ? Number(v.toFixed(round)) : null;
-  });
-  // Propager la dernière valeur connue vers l'avenir (projection constante)
-  for (let i = 1; i < arr.length; i++) if (arr[i] === null) arr[i] = arr[i - 1];
-  return arr;
-}
+// toAlignedArray importé depuis ingest-utils (renommé alignedArray)
 
 // ---------------------------------------------------------------------------
 // Programme principal
@@ -114,7 +106,7 @@ async function main() {
       const ds = await fetchEurostat(dataset, params);
       const series = extractSeries(ds, { ...params, ...filterOverride });
       if (series.size === 0) throw new Error("aucune donnée parsée");
-      data[key] = toAlignedArray(series, round);
+      data[key] = alignedArray(series, round);
       realized.push(key);
       const lastYear = Math.max(...series.keys());
       console.log(`✓ ${key} (${label}) — ${series.size} années, dernier=${lastYear}: ${series.get(lastYear)}`);
@@ -138,7 +130,7 @@ async function main() {
       const series = extractSeries(ds, {});
       const md = new Map<number, number>();
       series.forEach((v, y) => md.set(y, Math.round(v / 1000))); // M€ → Md€
-      data["pibNominalMd"] = toAlignedArray(md, 0);
+      data["pibNominalMd"] = alignedArray(md, 0);
       realized.push("pibNominalMd");
       console.log(`✓ pibNominalMd — PIB 2024: ${md.get(2024)} Md€`);
     } catch (e) {
@@ -175,7 +167,7 @@ async function main() {
       try {
         const series = extractSeries(apuDs, { na_item: naItem });
         if (series.size === 0) throw new Error("aucune donnée");
-        data[key] = toAlignedArray(series);
+        data[key] = alignedArray(series);
         realized.push(key);
         console.log(`  ✓ ${key} (${label}) — ${series.size} années`);
       } catch (e) {
@@ -202,7 +194,7 @@ async function main() {
     return;
   }
 
-  writeFileSync(target, JSON.stringify(data, null, 2) + "\n");
+  writeDataFile(target, data, false);
   console.log(`\n✓ Écrit ${target} — ${realized.length} séries réelles`);
 }
 
