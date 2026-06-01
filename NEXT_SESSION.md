@@ -4,7 +4,7 @@
 > `claude/next-session-review-gZUsM` et dis simplement « lis NEXT_SESSION.md et continue ».
 > Ce fichier est la mémoire inter-sessions (le conteneur est éphémère, seul git persiste).
 
-Dernière mise à jour : 2026-06-01 · Branche : `claude/next-session-review-gZUsM` · PR : #2 (draft)
+Dernière mise à jour : 2026-06-01 (session 2) · Branche : `claude/next-session-review-gZUsM` · PR : #2 (draft)
 
 ---
 
@@ -92,14 +92,16 @@ et barre de delta. Affiché dans le simulateur sous la timeline.
    proprement en national : DGEC publie des PDF, data.gouv.fr n'a que du régional.
    Alternative future : série INSEE `001762384` (indice prix carburant dans l'IPC) ?
    
-2. **Tests décile** — Écrire des tests pour `simulateDeciles()` dans
-   `lib/engine/__tests__/deciles.test.ts` : vérifier que D9 > D1 en pouvoir d'achat,
-   que la précarité est décroissante avec le revenu, que les deltas sont cohérents.
+2. **Tests décile** — ✅ **Fait.** 19 tests dans `lib/engine/__tests__/deciles.test.ts` :
+   structure (9 déciles, nommage, monotonie salaires), monotonie indicateurs
+   (pouvoirAchat croissant D1→D9, scorePrecarite décroissant), cohérence scénario
+   vs baseline, et 5 tests par type de ménage (famille, retraite). Total : 72 tests.
 
-3. **Vue "Et si ?" décile élargie** — Actuellement le DecilePanel montre D1–D9
-   d'un célibataire. Amélioration : permettre de choisir le type de ménage
-   (avec enfants, couple, retraité) pour voir comment les transferts sociaux
-   (allocations familiales, APL) redistribuent différemment selon le décile.
+3. **Vue "Et si ?" décile élargie** — ✅ **Fait.** `DecilePanel.tsx` dispose d'un
+   sélecteur de type de ménage (Célibataire / Famille 2 enf. / Retraité).
+   `simulateDeciles()` accepte un 4e paramètre `menage: MenageType = "celibataire"`.
+   Trois profils : célibataire 35 ans locataire, couple 2 enfants locataire 70m²,
+   retraité 67 ans propriétaire sans crédit.
 
 4. **README mise à jour** — Mettre à jour le tableau "Sur les données" dans README.md
    pour refléter les 5 séries désormais réelles (IPC, taux crédit, dette, déficit, PIB).
