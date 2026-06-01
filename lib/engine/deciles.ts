@@ -1,28 +1,34 @@
 // ---------------------------------------------------------------------------
-// Déciles de revenu D1–D9 — profils représentatifs d'un salarié célibataire
-// à temps complet, calibrés sur les salaires nets INSEE DADS (France, 2023).
+// Déciles de revenu D1–D9 — profils représentatifs calibrés INSEE DADS 2023.
 //
-// Conversion : net mensuel → brut annuel via taux de cotisations salariales
-// moyen ~22 % (cotisations + CSG/CRDS). Arrondi à 500€ pour la lisibilité.
+// Trois types de ménage disponibles :
+//   "celibataire"    — salarié célibataire 35 ans, locataire (défaut)
+//   "famille"        — couple marié 35 ans, 2 enfants, locataire
+//   "retraite"       — retraité 67 ans, propriétaire sans crédit
 //
-// Source : INSEE, DADS 2023 — Distribution des salaires nets mensuels ETP.
+// Pour le type "famille", le salaire brut du décile est celui du conjoint
+// principal ; le foyer bénéficie des allocations familiales et d'une APL
+// plus élevée (surface 70 m²).
+// Pour le type "retraite", le salaire brut = salaire de référence de
+// carrière (calcul de la pension proportionnel à l'ancienneté 40 ans).
 // ---------------------------------------------------------------------------
 
 import { simulate } from "./index";
 import type { CitizenProfile, StateParams, Indicator } from "./types";
 import { smicBrut } from "./data";
 
+export type MenageType = "celibataire" | "famille" | "retraite";
+
 export interface DecilePoint {
-  decile: string;     // "D1" … "D9"
-  rank: number;       // 1–9
+  decile: string;
+  rank: number;
   salaireBrutAnnuel: number;
   salaireNetMensuel: number;
   baseline: Indicator[];
   scenario: Indicator[];
 }
 
-// Salaires bruts annuels représentatifs par décile (célibataire ETP, 2023→2026).
-// Valeur minimale = SMIC (D1 souvent en-deçà ou proche du SMIC).
+// Salaires bruts annuels représentatifs par décile (ETP, 2023→2026).
 const DECILE_BRUT_ANNUEL = [
   21_600,   // D1  ≈ 1 400 € net/mois  (proche SMIC)
   26_000,   // D2  ≈ 1 700 € net/mois
@@ -35,15 +41,27 @@ const DECILE_BRUT_ANNUEL = [
   85_000,   // D9  ≈ 5 525 € net/mois
 ];
 
-function buildProfile(brut: number, year: number): CitizenProfile {
+function csp(brut: number, smic12: number): CitizenProfile["csp"] {
+  if (brut < smic12 * 1.3) return "employe";
+  if (brut < 50_000) return "profIntermediaire";
+  return "cadre";
+}
+
+function buildProfile(
+  brut: number,
+  year: number,
+  type: MenageType
+): CitizenProfile {
   const smic = smicBrut(year);
-  return {
+  const brutEffectif = Math.max(brut, smic * 12);
+
+  const base: CitizenProfile = {
     nom: "Archétype",
     age: 35,
     situationFamiliale: "celibataire",
     nbEnfants: 0,
-    csp: brut < smic * 12 * 1.3 ? "employe" : brut < 50_000 ? "profIntermediaire" : "cadre",
-    salaireBrutAnnuel: Math.max(brut, smic * 12),
+    csp: csp(brutEffectif, smic * 12),
+    salaireBrutAnnuel: brutEffectif,
     contrat: "cdi",
     anciennete: 8,
     logement: "locatairePrive",
@@ -57,15 +75,47 @@ function buildProfile(brut: number, year: number): CitizenProfile {
     abonnementsMensuels: 60,
     loisirsMensuels: 100,
   };
+
+  if (type === "famille") {
+    return {
+      ...base,
+      situationFamiliale: "marie",
+      nbEnfants: 2,
+      surfaceM2: 70,
+      budgetAlimentaireMensuel: 700,
+      abonnementsMensuels: 100,
+      loisirsMensuels: 150,
+    };
+  }
+
+  if (type === "retraite") {
+    return {
+      ...base,
+      age: 67,
+      contrat: "retraite",
+      anciennete: 40,
+      logement: "proprietaireSansCredit",
+      surfaceM2: 80,
+      loyerOuMensualite: 0,
+      transport: "voitureEssence",
+      distanceTravailKm: 0,
+      budgetAlimentaireMensuel: 400,
+      abonnementsMensuels: 70,
+      loisirsMensuels: 120,
+    };
+  }
+
+  return base;
 }
 
 export function simulateDeciles(
   baselineState: StateParams,
   scenarioState: StateParams,
-  year: number
+  year: number,
+  menage: MenageType = "celibataire"
 ): DecilePoint[] {
   return DECILE_BRUT_ANNUEL.map((brut, i) => {
-    const profile = buildProfile(brut, year);
+    const profile = buildProfile(brut, year, menage);
     const bSim = simulate(profile, baselineState, year);
     const sSim = simulate(profile, scenarioState, year);
     return {

@@ -121,3 +121,46 @@ describe("simulateDeciles — cohérence scénario vs baseline", () => {
     expect(Math.abs(d1Scen - d1Base)).toBeLessThan(50); // impact < 50€
   });
 });
+
+describe("simulateDeciles — types de ménage", () => {
+  const cel = simulateDeciles(state2026, state2026, 2026, "celibataire");
+  const fam = simulateDeciles(state2026, state2026, 2026, "famille");
+  const ret = simulateDeciles(state2026, state2026, 2026, "retraite");
+
+  it("famille : 9 déciles valides", () => {
+    expect(fam).toHaveLength(9);
+    fam.forEach((p) => {
+      [...p.baseline, ...p.scenario].forEach((ind) => {
+        expect(Number.isFinite(ind.value)).toBe(true);
+      });
+    });
+  });
+
+  it("retraite : 9 déciles valides", () => {
+    expect(ret).toHaveLength(9);
+    ret.forEach((p) => {
+      [...p.baseline, ...p.scenario].forEach((ind) => {
+        expect(Number.isFinite(ind.value)).toBe(true);
+      });
+    });
+  });
+
+  it("famille D5 (médiane) a un pouvoir d'achat positif malgré les charges familiales", () => {
+    const paFamD5 = fam[4].baseline.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paFamD5).toBeGreaterThan(0);
+  });
+
+  it("retraité a un pouvoir d'achat positif à chaque décile", () => {
+    ret.forEach((p) => {
+      const pa = p.baseline.find((i) => i.key === "pouvoirAchat")!.value;
+      expect(pa).toBeGreaterThan(0);
+    });
+  });
+
+  it("score de précarité retraite D1 inférieur au célibataire D1 (propriétaire sans charges)", () => {
+    const scoreCel = cel[0].baseline.find((i) => i.key === "scorePrecarite")!.value;
+    const scoreRet = ret[0].baseline.find((i) => i.key === "scorePrecarite")!.value;
+    // Propriétaire sans crédit = pas de loyer → charge fixe moindre
+    expect(scoreRet).toBeLessThan(scoreCel);
+  });
+});

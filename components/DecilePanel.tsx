@@ -13,6 +13,7 @@ import {
   Cell,
 } from "recharts";
 import { simulateDeciles } from "@/lib/engine/deciles";
+import type { MenageType } from "@/lib/engine/deciles";
 import type { StateParams } from "@/lib/engine/types";
 
 interface Props {
@@ -30,6 +31,12 @@ const METRICS: { key: MetricKey; label: string; unit: string }[] = [
   { key: "scorePrecarite", label: "Précarité", unit: "/100" },
 ];
 
+const MENAGES: { key: MenageType; label: string; desc: string }[] = [
+  { key: "celibataire", label: "Célibataire", desc: "Salarié 35 ans, locataire. D1 ≈ SMIC — D9 ≈ cadre senior." },
+  { key: "famille", label: "Famille 2 enf.", desc: "Couple marié 35 ans, 2 enfants, locataire 70 m². Allocations familiales incluses." },
+  { key: "retraite", label: "Retraité", desc: "Retraité 67 ans, propriétaire sans crédit. Pension calculée sur 40 ans de carrière." },
+];
+
 function fmtTooltip(n: number, unit: string): string {
   if (unit === "/100") return `${Math.round(n)}/100`;
   return `${n >= 0 ? "+" : ""}${Math.round(n).toLocaleString("fr-FR")} ${unit}`;
@@ -37,13 +44,15 @@ function fmtTooltip(n: number, unit: string): string {
 
 export function DecilePanel({ baseline, scenario, year, etSiActif }: Props) {
   const [metric, setMetric] = useState<MetricKey>("pouvoirAchat");
+  const [menage, setMenage] = useState<MenageType>("celibataire");
 
   const points = useMemo(
-    () => simulateDeciles(baseline, scenario, year),
-    [baseline, scenario, year]
+    () => simulateDeciles(baseline, scenario, year, menage),
+    [baseline, scenario, year, menage]
   );
 
   const currentMetric = METRICS.find((m) => m.key === metric)!;
+  const currentMenage = MENAGES.find((m) => m.key === menage)!;
 
   const chartData = points.map((p) => {
     const bVal = p.baseline.find((i) => i.key === metric)?.value ?? 0;
@@ -82,8 +91,24 @@ export function DecilePanel({ baseline, scenario, year, etSiActif }: Props) {
         </div>
       </div>
 
+      <div className="flex gap-1 flex-wrap">
+        {MENAGES.map((m) => (
+          <button
+            key={m.key}
+            onClick={() => setMenage(m.key)}
+            className={`rounded-full px-2 py-0.5 text-xs transition ${
+              menage === m.key
+                ? "bg-republique/20 text-republique border border-republique/30"
+                : "text-republique/40 hover:text-republique/60"
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
       <p className="text-xs text-republique/50">
-        Célibataire salarié 35 ans, locataire. D1 ≈ SMIC — D9 ≈ cadre senior.
+        {currentMenage.desc}
       </p>
 
       <div className="h-48 w-full">
