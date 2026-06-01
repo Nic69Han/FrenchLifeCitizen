@@ -47,15 +47,17 @@ const profileRetraite: CitizenProfile = {
 describe("simulate — structure de sortie", () => {
   const state = defaultStateParams(2026);
 
-  it("retourne 5 indicateurs pour l'année sélectionnée", () => {
+  it("retourne 7 indicateurs pour l'année sélectionnée", () => {
     const { current } = simulate(profileSmic, state, 2026);
-    expect(current).toHaveLength(5);
+    expect(current).toHaveLength(7);
     const keys = current.map((i) => i.key);
     expect(keys).toContain("pouvoirAchat");
     expect(keys).toContain("tauxEffortLogement");
     expect(keys).toContain("resteAVivre");
     expect(keys).toContain("pensionRetraite");
     expect(keys).toContain("scorePrecarite");
+    expect(keys).toContain("tauxImpositionEffectif");
+    expect(keys).toContain("empreinteCarbone");
   });
 
   it("timeline couvre 27 années (2000–2026)", () => {

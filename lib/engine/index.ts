@@ -16,6 +16,8 @@ import {
   defaultStateParams,
   trimestresCiblesGeneration,
   ageLegalGeneration,
+  primeActiviteBase,
+  tvaNormale as tvaNormHist,
 } from "./data";
 import { impotMensuel } from "./tax";
 import { cspProfile } from "./csp";
@@ -146,6 +148,136 @@ function aidesLogement(
   return aplBase(year) * state.aplMultiplicateur * taux * bonusEnfants;
 }
 
+/**
+ * Prime d'activité — calibrée CNAF (~200 €/mois au SMIC pour un célibataire
+ * sans enfants en 2026). Profil en triangle : monte de RSA au SMIC, redescend
+ * jusqu'au seuil de sortie (~2× SMIC). Non versée aux retraités/chômeurs.
+ */
+function primeActivite(
+  profile: CitizenProfile,
+  revenuNetAvantImpot: number,
+  year: number,
+  state: StateParams
+): number {
+  if (["retraite", "sansEmploi"].includes(profile.contrat)) return 0;
+  const base = primeActiviteBase(year);
+  if (base <= 0) return 0; // avant 2016
+
+  const smicNet = state.smicBrutMensuel * (1 - state.tauxCotisationsSalariales);
+  const enCouple = ["marie", "couple"].includes(profile.situationFamiliale);
+  const coeffCompo = 1 + (enCouple ? 0.5 : 0) + profile.nbEnfants * 0.15;
+  const maxPA = base * coeffCompo * state.primeActiviteRevalorisation;
+  // Seuil de sortie : ~2× SMIC pour célibataire, majoré pour familles
+  const seuil = smicNet * (2.0 + 0.5 * (coeffCompo - 1));
+
+  if (revenuNetAvantImpot <= state.rsaSocle) return 0;
+  if (revenuNetAvantImpot >= seuil) return 0;
+
+  if (revenuNetAvantImpot <= smicNet) {
+    // Phase montante : RSA → SMIC
+    return Math.max(0, maxPA * (revenuNetAvantImpot - state.rsaSocle) /
+      Math.max(1, smicNet - state.rsaSocle));
+  }
+  // Phase descendante : SMIC → seuil
+  return Math.max(0, maxPA * (seuil - revenuNetAvantImpot) /
+    Math.max(1, seuil - smicNet));
+}
+
+/**
+ * Coût mensuel de la mutuelle complémentaire.
+ * CSS (Complémentaire Santé Solidaire) gratuite sous ~55 % du SMIC.
+ * Les salariés bénéficient de la prise en charge patronale à 50 %.
+ * Les retraités financent leur mutuelle en totalité.
+ */
+function coutMutuelle(
+  profile: CitizenProfile,
+  revenuNetAvantImpot: number,
+  year: number,
+  state: StateParams
+): number {
+  const seuilCSS = state.smicBrutMensuel * 0.55;
+  if (revenuNetAvantImpot <= seuilCSS) return 0; // CSS gratuite
+  if (profile.sante === "ald") return 12 * (ipc(year) / ipc(2026)); // ALD allégée
+  const base = profile.contrat === "retraite" ? 120 : 45; // part salarié ou retraité
+  return base * (ipc(year) / ipc(2026));
+}
+
+/**
+ * Taxe foncière mensuelle pour les propriétaires.
+ * Taux national moyen calibré ~12 €/m²/an (taux communaux 2026).
+ */
+function taxeFonciere(profile: CitizenProfile, state: StateParams): number {
+  if (!["proprietaireSansCredit", "proprietaireAvecCredit"].includes(profile.logement)) return 0;
+  return (profile.surfaceM2 * state.taxeFonciereTauxM2) / 12;
+}
+
+/**
+ * Coût net de garde d'enfants (crèche / assistante maternelle − CMG).
+ * Nombre d'enfants en garde estimé selon l'âge du parent (< 6 ans).
+ * CMG dégressif : 85 % pour revenus modestes → 25 % pour hauts revenus.
+ */
+function coutGardeEnfants(
+  profile: CitizenProfile,
+  revenuNetAvantImpot: number,
+  year: number,
+  state: StateParams
+): number {
+  if (["retraite", "sansEmploi"].includes(profile.contrat)) return 0;
+  if (profile.nbEnfants === 0) return 0;
+
+  // Approximation : enfants en bas âge si le parent a moins de 42 ans
+  const nbGarde = Math.max(0,
+    Math.min(profile.nbEnfants, Math.round((42 - profile.age) / 5)));
+  if (nbGarde <= 0) return 0;
+
+  const coutBrut = 900 * (ipc(year) / ipc(2026)); // ~900 €/mois/enfant en 2026
+  const smicNet = state.smicBrutMensuel * (1 - state.tauxCotisationsSalariales);
+
+  // CMG : prise en charge dégressive de 85 % (bas revenus) à 25 % (hauts revenus)
+  const tauxPEC =
+    revenuNetAvantImpot < smicNet * 1.3 ? 0.85
+    : revenuNetAvantImpot < smicNet * 2.5
+      ? 0.85 - 0.35 * (revenuNetAvantImpot - smicNet * 1.3) / (smicNet * 1.2)
+    : revenuNetAvantImpot < smicNet * 5
+      ? 0.50 - 0.25 * (revenuNetAvantImpot - smicNet * 2.5) / (smicNet * 2.5)
+    : 0.25;
+
+  return nbGarde * coutBrut * (1 - tauxPEC);
+}
+
+/**
+ * Empreinte carbone mensuelle en kgCO₂eq.
+ * Sources : ADEME (alimentation), HBEFA (transport routier), SDES (énergie).
+ */
+function empreinteCarbone(profile: CitizenProfile): number {
+  // Transport
+  const kmMensuels = profile.distanceTravailKm * 2 * 20;
+  const co2KmParMode: Record<string, number> = {
+    voitureEssence: 0.193,
+    voitureDiesel: 0.171,
+    voitureElectrique: 0.056, // mix électrique français bas-carbone
+    transportCommun: 0.006,
+    velo: 0,
+    teletravail: 0,
+  };
+  const kgTransport = kmMensuels * (co2KmParMode[profile.transport] ?? 0.19);
+
+  // Chauffage (kgCO₂/m²/mois, base 150 kWh/m²/an de consommation moyenne)
+  const co2M2ParChauffage: Record<string, number> = {
+    gaz: 2.53,        // 0.202 kgCO₂/kWh × 150/12
+    fioul: 4.05,      // 0.324 kgCO₂/kWh × 150/12
+    electrique: 0.65, // 0.052 kgCO₂/kWh × 150/12 (nucléaire FR)
+    bois: 0.38,       // quasi-neutre (biogénique), résiduel comb.
+    pompeChaleur: 0.22, // COP ~3 → 50 kWh/m²/an × 0.052/12
+  };
+  const kgChauffage = (co2M2ParChauffage[profile.chauffage] ?? 2.0) * profile.surfaceM2;
+
+  // Alimentation : ~200 kgCO₂eq/mois pour régime moyen (ADEME), proportionnel au budget
+  const kgAlimentation = 200 * (profile.budgetAlimentaireMensuel / 350);
+
+  return Math.round(kgTransport + kgChauffage + kgAlimentation);
+}
+
 /** Reste à charge santé mensuel selon l'état de santé et le remboursement. */
 function resteAChargeSante(
   profile: CitizenProfile,
@@ -204,11 +336,17 @@ function computeYear(
     ir: number;
     aides: number;
     depensesContraintes: number;
+    pa: number;
+    co2: number;
   };
 } {
+  // --- Revenu d'activité ---
+  // Pour les sans-emploi, le revenu d'activité est 0 ; les allocations
+  // (ARE ou RSA) sont comptées uniquement dans les aides pour éviter le
+  // double-comptage.
   const revenuBrutMensuel =
     profile.contrat === "sansEmploi"
-      ? state.rsaSocle
+      ? 0
       : profile.contrat === "retraite"
       ? pensionRetraite(profile, state, year)
       : salaireBrutMensuel(profile, state, year);
@@ -229,15 +367,31 @@ function computeYear(
       ? 0
       : impotMensuel(profile, revenuNetAvantImpot * 12, year, state);
 
+  // --- Aides sociales ---
   const aplx = aidesLogement(profile, revenuNetAvantImpot, year, state);
   const alloc =
     profile.nbEnfants >= 2
       ? state.allocFamilialesParEnfant * profile.nbEnfants
       : 0;
-  const rsa =
-    profile.contrat === "sansEmploi" ? state.rsaSocle : 0;
-  const aides = aplx + alloc + rsa;
 
+  // ARE (allocation retour emploi) ou RSA selon ancienneté et situation
+  const chomageAide = (() => {
+    if (profile.contrat !== "sansEmploi") return 0;
+    const moisAnciennete = profile.anciennete * 12;
+    if (moisAnciennete >= 4) {
+      // ARE : ~57 % du salaire brut journalier de référence
+      const areMonthly = (profile.salaireBrutAnnuel / 12) * 0.57;
+      return Math.max(areMonthly, state.rsaSocle);
+    }
+    return state.rsaSocle;
+  })();
+
+  // Prime d'activité pour les travailleurs à revenus modestes
+  const pa = primeActivite(profile, revenuNetAvantImpot, year, state);
+
+  const aides = aplx + alloc + chomageAide + pa;
+
+  // --- Dépenses contraintes ---
   // Loyer : on respecte la saisie utilisateur si fournie, sinon estimation.
   const loyer =
     profile.loyerOuMensualite > 0
@@ -247,16 +401,29 @@ function computeYear(
       : 0;
 
   const transport = coutTransport(profile, year, state);
-  const energie = coutEnergie(profile, year);
+
+  // TVA : correction des prix de consommation selon les taux en vigueur.
+  // TVA normale s'applique aux abonnements/loisirs ; TVA réduite (5.5 %) à
+  // l'alimentation et à l'énergie résidentielle (gaz, électricité).
+  const tvaNormRef = tvaNormHist(year) || 0.20;
+  const facteurTVANorm = (1 + state.tvaNormale) / (1 + tvaNormRef);
+  const facteurTVARed  = (1 + state.tvaReduite) / 1.055;
+
+  const energie = coutEnergie(profile, year) * facteurTVARed;
   const alimentation =
-    profile.budgetAlimentaireMensuel * (ipc(year) / ipc(2026));
+    profile.budgetAlimentaireMensuel * (ipc(year) / ipc(2026)) * facteurTVARed;
   const santeRAC = resteAChargeSante(profile, state);
-  const abonnements = profile.abonnementsMensuels;
+  const abonnements = profile.abonnementsMensuels * facteurTVANorm;
+
+  const mutuelle = coutMutuelle(profile, revenuNetAvantImpot, year, state);
+  const tf = taxeFonciere(profile, state);
+  const garde = coutGardeEnfants(profile, revenuNetAvantImpot, year, state);
 
   const depensesContraintes =
-    loyer + transport + energie + alimentation + santeRAC + abonnements;
+    loyer + transport + energie + alimentation + santeRAC
+    + abonnements + mutuelle + tf + garde;
 
-  // `aides` inclut déjà les allocations familiales, le RSA et les APL.
+  // `aides` inclut APL, allocations familiales, ARE/RSA et prime d'activité.
   const pouvoirAchat =
     revenuNetAvantImpot - ir + aides - depensesContraintes;
 
@@ -281,18 +448,24 @@ function computeYear(
   let scoreEmploi = 0;
   if (profile.contrat === "sansEmploi") scoreEmploi += 20;
   else if (["interim", "cdd"].includes(profile.contrat)) scoreEmploi += 8;
-  // Risque de fond lié à la CSP, même en emploi stable.
   scoreEmploi += Math.max(0, (risque - 1) * 10);
   score += scoreEmploi * risque;
 
-  // Vulnérabilité liée à l'âge : entrée dans la vie active et fin de carrière
-  // (seniors plus difficilement réemployables) sont plus exposées.
+  // Vulnérabilité liée à l'âge : entrée dans la vie active et fin de carrière.
   if (profile.contrat !== "retraite") {
     if (profile.age < 25) score += 6;
     else if (profile.age >= 55) score += 5;
   }
 
   const scorePrecarite = Math.round(Math.min(100, Math.max(0, score)));
+
+  // Taux d'imposition effectif (pression fiscale directe)
+  const tauxImpositionEffectif =
+    revenuBrutMensuel > 0
+      ? Math.round((cotisations + ir) / revenuBrutMensuel * 1000) / 10
+      : 0;
+
+  const co2 = empreinteCarbone(profile);
 
   return {
     result: {
@@ -302,6 +475,8 @@ function computeYear(
       resteAVivre: Math.round(resteAVivre),
       pensionRetraite: Math.round(pension),
       scorePrecarite,
+      tauxImpositionEffectif,
+      empreinteCarbone: co2,
     },
     details: {
       revenuBrutMensuel,
@@ -309,6 +484,8 @@ function computeYear(
       ir,
       aides,
       depensesContraintes,
+      pa,
+      co2,
     },
   };
 }
@@ -366,6 +543,8 @@ export function simulate(
 
   const { result, details } = computeYear(profile, state, selectedYear);
 
+  const paStr = details.pa > 0
+    ? ` dont prime d'activité +${Math.round(details.pa)} €` : "";
   const current: Indicator[] = [
     {
       key: "pouvoirAchat",
@@ -377,9 +556,9 @@ export function simulate(
         `Revenu net (${Math.round(details.revenuBrutMensuel)} − ${Math.round(
           details.cotisations
         )} cotis.) ` +
-        `− IR (${Math.round(details.ir)}) + aides (${Math.round(
-          details.aides
-        )}) − dépenses contraintes (${Math.round(details.depensesContraintes)}).`,
+        `− IR (${Math.round(details.ir)}) + aides (${Math.round(details.aides)}${paStr}) ` +
+        `− charges (${Math.round(details.depensesContraintes)} : loyer, transport, énergie, ` +
+        `alimentation, santé, mutuelle, taxe foncière, garde).`,
     },
     {
       key: "tauxEffortLogement",
@@ -420,6 +599,26 @@ export function simulate(
       formula:
         "Composite : taux d'effort logement élevé, reste à vivre sous le seuil " +
         "de pauvreté, ALD/handicap, situation d'emploi. 0 = confortable, 100 = très précaire.",
+    },
+    {
+      key: "tauxImpositionEffectif",
+      label: "Pression fiscale directe",
+      value: result.tauxImpositionEffectif,
+      unit: "%",
+      goodDirection: "down",
+      formula:
+        "(Cotisations salariales + impôt sur le revenu) ÷ revenu brut × 100. " +
+        "Mesure la part du revenu prélevée directement par les prélèvements obligatoires.",
+    },
+    {
+      key: "empreinteCarbone",
+      label: "Empreinte carbone",
+      value: result.empreinteCarbone,
+      unit: "kgCO₂/mois",
+      goodDirection: "down",
+      formula:
+        "Transport (mode, distance) + chauffage (énergie, surface) + alimentation " +
+        "(budget × facteur ADEME). Indirectement liée à la taxe carbone et à la TICPE.",
     },
   ];
 

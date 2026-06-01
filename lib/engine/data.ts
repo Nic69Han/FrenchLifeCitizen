@@ -73,6 +73,19 @@ export const loyerM2 = (year: number) => read("loyerMoyenM2", year);
 export const aplBase = (year: number) => read("aplBaseMensuelle", year);
 
 /**
+ * Montant de prime d'activité calibré pour un·e célibataire au SMIC.
+ * Créée en janvier 2016 (remplacement du RSA activité) ; revalorisation
+ * exceptionnelle de +80€ effective janvier 2019 (gilets jaunes).
+ * Source : CNAF / barème légal. Indexé sur l'IPC.
+ */
+export function primeActiviteBase(year: number): number {
+  if (year < 2016) return 0;
+  // Pré-boost (2016-2018) : ~120€ ; post-boost (2019+) : ~200€ en valeur 2026
+  if (year < 2019) return Math.round(120 * ipc(year) / ipc(2018));
+  return Math.round(200 * ipc(year) / ipc(2026));
+}
+
+/**
  * Paramètres retraite "en vigueur" une année calendaire donnée : on prend la
  * génération qui atteint alors l'âge légal (~62 ans avant), pour alimenter les
  * curseurs d'État par défaut. Valeurs réelles par génération (CNAV).
@@ -124,14 +137,17 @@ export function defaultStateParams(year: number): StateParams {
     tauxCotisationsSalariales: tauxCotisations(year),
     tauxMarginalIR: tauxMarginalHaut(year),
     tvaNormale: tvaNormale(year),
+    tvaReduite: 0.055,                 // TVA alimentation constante depuis 2000
     smicBrutMensuel: smicBrut(year),
     allocFamilialesParEnfant: Math.round(allocFamillesDeuxEnfants(year) / 2),
     aplMultiplicateur: 1,
+    primeActiviteRevalorisation: 1,    // PA réelle (1 = valeur légale)
     ageLegalRetraite: ageLegal(year),
     trimestresRequis: trimestresRequis(year),
     taxeCarbone: year >= 2014 ? 44 : 0,
     ticpe: 0,
     rsaSocle: rsaSocle(year),
     tauxRemboursementSante: 0.7,
+    taxeFonciereTauxM2: 12,            // ~12 €/m²/an, taux national moyen 2026
   };
 }

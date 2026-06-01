@@ -33,10 +33,10 @@ describe("simulateDeciles — structure", () => {
     points.forEach((p) => expect(p.salaireNetMensuel).toBeGreaterThan(0));
   });
 
-  it("chaque décile a 5 indicateurs baseline et scenario", () => {
+  it("chaque décile a 7 indicateurs baseline et scenario", () => {
     points.forEach((p) => {
-      expect(p.baseline).toHaveLength(5);
-      expect(p.scenario).toHaveLength(5);
+      expect(p.baseline).toHaveLength(7);
+      expect(p.scenario).toHaveLength(7);
     });
   });
 });

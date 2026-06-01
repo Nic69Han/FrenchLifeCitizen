@@ -74,15 +74,18 @@ export interface StateParams {
   tauxCotisationsSalariales: number; // 0–0.40
   tauxMarginalIR: number; // tranche haute, 0–0.75
   tvaNormale: number; // 0.05–0.25
+  tvaReduite: number; // TVA alimentation/médicaments (défaut 5.5 %)
   smicBrutMensuel: number; // €
   allocFamilialesParEnfant: number; // €/enfant/mois
   aplMultiplicateur: number; // 0–2 (modulation des APL)
+  primeActiviteRevalorisation: number; // 0 = supprimée, 1 = réelle, >1 = hausse
   ageLegalRetraite: number; // 60–70
   trimestresRequis: number;
   taxeCarbone: number; // €/tonne (impacte le carburant)
   ticpe: number; // €/litre additionnel
   rsaSocle: number; // €/mois
   tauxRemboursementSante: number; // 0–1
+  taxeFonciereTauxM2: number; // €/m²/an (taxe foncière, défaut ~12)
 }
 
 /** Un indicateur calculé, avec sa valeur et l'explication de sa formule. */
@@ -103,6 +106,8 @@ export interface SimulationResult {
   resteAVivre: number;
   pensionRetraite: number;
   scorePrecarite: number;
+  tauxImpositionEffectif: number;
+  empreinteCarbone: number;
 }
 
 export interface FullSimulation {
