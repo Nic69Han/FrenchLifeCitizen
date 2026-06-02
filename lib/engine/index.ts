@@ -80,16 +80,17 @@ function coutTransport(
   const { transport, distanceTravailKm } = profile;
   const joursTravailles = 20;
   const kmMensuels = distanceTravailKm * 2 * joursTravailles;
+  // Remboursement employeur uniquement pour les actifs salariés
+  const aActif = !["sansEmploi", "retraite"].includes(profile.contrat);
 
   switch (transport) {
     case "voitureEssence":
     case "voitureDiesel": {
       const conso = transport === "voitureDiesel" ? 6 : 7; // L/100km
-      // Taxe carbone : ~0,0024 €/L par €/tonne CO2 ; + TICPE additionnelle.
       const prixL =
         prixCarburant(year) + state.taxeCarbone * 0.0024 + state.ticpe;
       const carburant = (kmMensuels / 100) * conso * prixL;
-      const assuranceEntretien = 110; // forfait mensuel
+      const assuranceEntretien = 110;
       return carburant + assuranceEntretien;
     }
     case "voitureElectrique": {
@@ -98,10 +99,16 @@ function coutTransport(
       const elec = (kmMensuels / 100) * conso * prixKwh;
       return elec + 90;
     }
-    case "transportCommun":
-      return 55 * (ipc(year) / ipc(2026));
+    case "transportCommun": {
+      // Brut ~80 €/mois (abonnement TC moyen France), 50 % remboursé par employeur
+      // (obligation légale depuis 1982, curseur piloté par remboursementTransportEmployeur)
+      const gross = 80 * (ipc(year) / ipc(2026));
+      const remb = aActif ? state.remboursementTransportEmployeur : 0;
+      return Math.max(0, gross * (1 - remb));
+    }
     case "velo":
-      return 15;
+      // FMD (forfait mobilités durables) jusqu'à 35 €/mois si actif
+      return Math.max(0, 15 - (aActif ? 15 * state.remboursementTransportEmployeur : 0));
     case "teletravail":
     default:
       return 0;
@@ -281,6 +288,44 @@ function empreinteCarbone(profile: CitizenProfile): number {
   return Math.round(kgTransport + kgChauffage + kgAlimentation);
 }
 
+/**
+ * Chèque énergie (créé 2018) — aide nationale means-tested pour payer les factures
+ * d'énergie. Montant dégressif : plein sous le RSA, nul à partir de 2× SMIC net.
+ */
+function chequeEnergie(
+  profile: CitizenProfile,
+  revenuNetAvantImpot: number,
+  state: StateParams
+): number {
+  if (state.chequeEnergieBase <= 0) return 0;
+  const plafond = state.smicBrutMensuel * 2;
+  if (revenuNetAvantImpot >= plafond) return 0;
+  const facteur = revenuNetAvantImpot <= state.rsaSocle
+    ? 1
+    : 1 - (revenuNetAvantImpot - state.rsaSocle) / Math.max(1, plafond - state.rsaSocle);
+  return Math.max(0, (state.chequeEnergieBase * facteur) / 12);
+}
+
+/**
+ * Frais scolaires (cantine + périscolaire) pour les enfants d'âge scolaire.
+ * Estimés à partir du nb d'enfants et de l'âge du parent. Les jeunes enfants
+ * (en garde) sont déjà comptabilisés séparément dans coutGardeEnfants.
+ */
+function fraisScolaires(
+  profile: CitizenProfile,
+  year: number,
+  state: StateParams
+): number {
+  if (profile.nbEnfants === 0) return 0;
+  if (profile.age < 25 || profile.age >= 55) return 0;
+  // Estimation enfants en garde (0–3 ans) — cohérent avec coutGardeEnfants
+  const nbGardeEstime = Math.max(0,
+    Math.min(profile.nbEnfants, Math.round((42 - profile.age) / 5)));
+  const nbScolaires = Math.max(0, profile.nbEnfants - nbGardeEstime);
+  if (nbScolaires === 0) return 0;
+  return nbScolaires * state.fraisScolairesMunicipaux * (ipc(year) / ipc(2026));
+}
+
 /** Reste à charge santé mensuel selon l'état de santé et le remboursement. */
 function resteAChargeSante(
   profile: CitizenProfile,
@@ -321,7 +366,10 @@ function pensionRetraite(
   // de remplacement propre à la CSP (régime fonctionnaire favorable,
   // indépendants moins couverts…).
   const sam = salaireMensuel * cspProfile(profile.csp).remplacementRetraite;
-  const pension = sam * tauxLiquidation;
+  const pensionBase = sam * tauxLiquidation;
+  // Majoration CNAV +10 % pour les parents de 3 enfants ou plus (droit légal)
+  const bonusFamille = profile.nbEnfants >= 3 ? 1.10 : 1;
+  const pension = pensionBase * bonusFamille;
   const minimumRetraite = state.smicBrutMensuel * 0.85 * 0.5;
   return Math.max(pension, minimumRetraite);
 }
@@ -424,14 +472,24 @@ function computeYear(
   // Prime d'activité pour les travailleurs à revenus modestes
   const pa = primeActivite(profile, revenuNetAvantImpot, year, state);
 
-  const aides = aplx + alloc + chomageAide + pa + aah;
+  // Chèque énergie (2018+, means-tested)
+  const chequeEn = chequeEnergie(profile, revenuNetAvantImpot, state);
+
+  // Avantages salariés (tickets resto, chèques vacances, CESU) — exonérés charges/IR
+  const avantages = profile.contrat !== "sansEmploi" && profile.contrat !== "retraite"
+    ? (profile.avantagesSalaries ?? 0) * (ipc(year) / ipc(2026))
+    : 0;
+
+  const aides = aplx + alloc + chomageAide + pa + aah + chequeEn + avantages;
 
   // --- Dépenses contraintes ---
   const loyer =
     profile.loyerOuMensualite > 0
       ? profile.loyerOuMensualite * (ipc(year) / ipc(2026))
-      : ["locatairePrive", "hlm"].includes(profile.logement)
-      ? loyerM2(year) * profile.surfaceM2 * (profile.logement === "hlm" ? 0.6 : 1)
+      : profile.logement === "hlm"
+      ? loyerM2(year) * profile.surfaceM2 * 0.6  // HLM déjà administré
+      : profile.logement === "locatairePrive"
+      ? loyerM2(year) * profile.surfaceM2 * state.plafonnementLoyersMultiplicateur
       : 0;
 
   const transport = coutTransport(profile, year, state);
@@ -449,10 +507,11 @@ function computeYear(
   const mutuelle = coutMutuelle(profile, revenuNetAvantImpot, year, state);
   const tf = taxeFonciere(profile, state);
   const garde = coutGardeEnfants(profile, revenuNetAvantImpot, year, state);
+  const scolaire = fraisScolaires(profile, year, state);
 
   const depensesContraintes =
     loyer + transport + energie + alimentation + santeRAC
-    + abonnements + mutuelle + tf + garde;
+    + abonnements + mutuelle + tf + garde + scolaire;
 
   const pouvoirAchat =
     revenuNetAvantImpot - ir + aides + netCapital - depensesContraintes;

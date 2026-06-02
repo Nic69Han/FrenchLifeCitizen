@@ -246,21 +246,38 @@ export function ProfilePanel() {
           </Field>
         </div>
 
-        <Field
-          label={`Revenus du capital — ${euro(profile.capitalFinancierMensuel ?? 0)}/mois`}
-        >
-          <input
-            type="range"
-            min={0}
-            max={3000}
-            step={50}
-            value={profile.capitalFinancierMensuel ?? 0}
-            onChange={(e) =>
-              setProfile({ capitalFinancierMensuel: +e.target.value })
-            }
-            className="w-full"
-          />
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field
+            label={`Revenus du capital — ${euro(profile.capitalFinancierMensuel ?? 0)}/mois`}
+          >
+            <input
+              type="range"
+              min={0}
+              max={3000}
+              step={50}
+              value={profile.capitalFinancierMensuel ?? 0}
+              onChange={(e) =>
+                setProfile({ capitalFinancierMensuel: +e.target.value })
+              }
+              className="w-full"
+            />
+          </Field>
+          <Field
+            label={`Avantages salariés — ${euro(profile.avantagesSalaries ?? 0)}/mois`}
+          >
+            <input
+              type="range"
+              min={0}
+              max={500}
+              step={10}
+              value={profile.avantagesSalaries ?? 0}
+              onChange={(e) =>
+                setProfile({ avantagesSalaries: +e.target.value })
+              }
+              className="w-full"
+            />
+          </Field>
+        </div>
 
         <Section title="Logement" />
 

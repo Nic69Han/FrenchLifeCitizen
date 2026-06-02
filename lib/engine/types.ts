@@ -72,6 +72,7 @@ export interface CitizenProfile {
   parentIsole?: boolean;              // parent isolé : RSA majoré, PA bonifiée
   capitalFinancierMensuel?: number;   // €/mois dividendes, rentes, PEA… → PFU
   heuresSup?: number;                 // heures supplémentaires par mois
+  avantagesSalaries?: number;         // €/mois tickets resto, chèques vacances, CESU
 }
 
 /** Les curseurs d'État (sous-ensemble MVP des 40 du plan). */
@@ -91,9 +92,13 @@ export interface StateParams {
   rsaSocle: number;                   // €/mois
   tauxRemboursementSante: number;     // 0–1
   taxeFonciereTauxM2: number;         // €/m²/an (taxe foncière, défaut ~12)
-  tauxCotisationsPatronales: number;  // ~0.42 (cotisations employeur, hors allègements)
-  exonerationHeuresSup: number;       // 0–1 (fraction exonérée IR heures sup)
-  tauxPFU: number;                    // flat tax revenus du capital (défaut 0.30)
+  tauxCotisationsPatronales: number;      // ~0.42 (cotisations employeur, hors allègements)
+  exonerationHeuresSup: number;           // 0–1 (fraction exonérée IR heures sup)
+  tauxPFU: number;                        // flat tax revenus du capital (défaut 0.30)
+  remboursementTransportEmployeur: number; // 0–1 (défaut 0.5, obligatoire légal)
+  chequeEnergieBase: number;              // €/an (défaut 200, créé 2018, means-tested)
+  plafonnementLoyersMultiplicateur: number; // 0.5–1.5 (1 = libre, <1 = encadrement)
+  fraisScolairesMunicipaux: number;       // €/mois/enfant scolarisé (cantine + périscolaire)
 }
 
 /** Un indicateur calculé, avec sa valeur et l'explication de sa formule. */

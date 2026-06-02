@@ -154,5 +154,9 @@ export function defaultStateParams(year: number): StateParams {
     exonerationHeuresSup:
       year >= 2019 || (year >= 2007 && year < 2012) ? 1 : 0,
     tauxPFU: 0.30,                      // PFU créé en 2018 (12,8 % IR + 17,2 % prélèv. soc.)
+    remboursementTransportEmployeur: 0.50, // 50 % obligatoire (loi, abonnements TC)
+    chequeEnergieBase: year >= 2018 ? 200 : 0, // créé 2018, ~200 €/an tranche 1
+    plafonnementLoyersMultiplicateur: 1.0, // 1 = marché libre ; <1 = encadrement (Paris, Lille…)
+    fraisScolairesMunicipaux: 120,      // ~120 €/mois/enfant (cantine QF + périscolaire moyen)
   };
 }

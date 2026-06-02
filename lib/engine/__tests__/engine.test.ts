@@ -274,6 +274,80 @@ describe("simulate — nouveaux paramètres profil", () => {
   });
 });
 
+describe("simulate — vague 3 : transport, loyer, scolaire, énergie, retraite familiale", () => {
+  const state = defaultStateParams(2026);
+
+  it("remboursement transport employeur 100 % réduit le coût du transport en commun", () => {
+    const state0 = { ...state, remboursementTransportEmployeur: 0 };
+    const state1 = { ...state, remboursementTransportEmployeur: 1 };
+    const { current: c0 } = simulate(profileSmic, state0, 2026);
+    const { current: c1 } = simulate(profileSmic, state1, 2026);
+    const pa0 = c0.find((i) => i.key === "pouvoirAchat")!.value;
+    const pa1 = c1.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(pa1).toBeGreaterThan(pa0);
+  });
+
+  it("encadrement des loyers réduit le coût du logement (locataire privé)", () => {
+    const profileLoc: CitizenProfile = { ...profileSmic, logement: "locatairePrive", loyerOuMensualite: 0 };
+    const stateEnc = { ...state, plafonnementLoyersMultiplicateur: 0.8 };
+    const { current: base } = simulate(profileLoc, state, 2026);
+    const { current: enc } = simulate(profileLoc, stateEnc, 2026);
+    const paBase = base.find((i) => i.key === "pouvoirAchat")!.value;
+    const paEnc = enc.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paEnc).toBeGreaterThan(paBase);
+  });
+
+  it("cantine gratuite améliore le pouvoir d'achat des familles", () => {
+    const profileFamille: CitizenProfile = {
+      ...profileSmic,
+      nbEnfants: 2,
+      situationFamiliale: "marie",
+      age: 35,
+    };
+    const stateCantine0 = { ...state, fraisScolairesMunicipaux: 0 };
+    const { current: avecCantine } = simulate(profileFamille, state, 2026);
+    const { current: sansCantine } = simulate(profileFamille, stateCantine0, 2026);
+    const paAvec = avecCantine.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansCantine.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paSans).toBeGreaterThan(paAvec); // cantine 0 = moins de dépenses = plus de PA
+  });
+
+  it("chèque énergie améliore le pouvoir d'achat des ménages modestes", () => {
+    const stateSansCheque = { ...state, chequeEnergieBase: 0 };
+    const { current: avecCheque } = simulate(profileSmic, state, 2026);
+    const { current: sansCheque } = simulate(profileSmic, stateSansCheque, 2026);
+    const paAvec = avecCheque.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansCheque.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThanOrEqual(paSans);
+  });
+
+  it("majoration retraite +10 % pour 3 enfants (CNAV)", () => {
+    const profileRet3: CitizenProfile = {
+      ...profileSmic,
+      nom: "Retraité3",
+      age: 67,
+      contrat: "retraite",
+      anciennete: 40,
+      nbEnfants: 3,
+    };
+    const profileRet0: CitizenProfile = { ...profileRet3, nbEnfants: 0 };
+    const { current: avec3 } = simulate(profileRet3, state, 2026);
+    const { current: avec0 } = simulate(profileRet0, state, 2026);
+    const pension3 = avec3.find((i) => i.key === "pensionRetraite")!.value;
+    const pension0 = avec0.find((i) => i.key === "pensionRetraite")!.value;
+    expect(pension3).toBeGreaterThan(pension0 * 1.05); // au moins +5 % (bonus +10 % net du minimum)
+  });
+
+  it("avantages salariés augmentent le pouvoir d'achat", () => {
+    const profileAvantages: CitizenProfile = { ...profileSmic, avantagesSalaries: 200 };
+    const { current: avecAv } = simulate(profileAvantages, state, 2026);
+    const { current: sansAv } = simulate(profileSmic, state, 2026);
+    const paAvec = avecAv.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansAv.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans + 150); // ~200 €/mois nets indexés
+  });
+});
+
 describe("simulate — prime d'activité et nouveaux modules", () => {
   const state = defaultStateParams(2026);
 

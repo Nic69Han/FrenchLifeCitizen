@@ -33,6 +33,7 @@ export const ARCHETYPES: Archetype[] = [
       budgetAlimentaireMensuel: 520,
       abonnementsMensuels: 70,
       loisirsMensuels: 120,
+      avantagesSalaries: 80,            // tickets resto hôpital public
     },
   },
   {

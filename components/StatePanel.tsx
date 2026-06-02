@@ -28,12 +28,16 @@ const SLIDERS: SliderDef[] = [
   { key: "exonerationHeuresSup", label: "Exonération IR heures sup", min: 0, max: 1, step: 0.1, display: (v) => `${Math.round(v * 100)} %`, groupe: "Social & Travail" },
   { key: "primeActiviteRevalorisation", label: "Prime d'activité (niveau)", min: 0, max: 2, step: 0.05, display: (v) => `${Math.round(v * 100)} %`, groupe: "Social & Travail" },
   { key: "allocFamilialesParEnfant", label: "Allocations familiales / enfant", min: 0, max: 400, step: 5, display: (v) => euro(v), groupe: "Social & Travail" },
+  { key: "remboursementTransportEmployeur", label: "Remboursement transport employeur", min: 0, max: 1, step: 0.05, display: (v) => pct(v * 100, 0), groupe: "Social & Travail" },
+  { key: "chequeEnergieBase", label: "Chèque énergie (montant annuel)", min: 0, max: 800, step: 10, display: (v) => `${v} €/an`, groupe: "Social & Travail" },
   { key: "rsaSocle", label: "RSA socle", min: 0, max: 1200, step: 10, display: (v) => euro(v), groupe: "Social & Travail" },
   // Retraites
   { key: "ageLegalRetraite", label: "Âge légal de départ", min: 60, max: 70, step: 0.25, display: (v) => `${v.toFixed(2).replace(".00", "")} ans`, groupe: "Retraites" },
   { key: "trimestresRequis", label: "Trimestres requis", min: 150, max: 190, step: 1, display: (v) => `${v} trim.`, groupe: "Retraites" },
   // Logement & Santé
   { key: "aplMultiplicateur", label: "Niveau des APL", min: 0, max: 2, step: 0.05, display: (v) => `${Math.round(v * 100)} %`, groupe: "Logement & Santé" },
+  { key: "plafonnementLoyersMultiplicateur", label: "Encadrement des loyers privés", min: 0.5, max: 1.5, step: 0.05, display: (v) => `${Math.round(v * 100)} % marché`, groupe: "Logement & Santé" },
+  { key: "fraisScolairesMunicipaux", label: "Frais scolaires (cantine + périscolaire)", min: 0, max: 250, step: 5, display: (v) => `${v} €/enf./mois`, groupe: "Logement & Santé" },
   { key: "taxeFonciereTauxM2", label: "Taxe foncière (taux moyen)", min: 0, max: 25, step: 0.5, display: (v) => `${v.toFixed(1)} €/m²/an`, groupe: "Logement & Santé" },
   { key: "tauxRemboursementSante", label: "Remboursement Sécu (actes courants)", min: 0, max: 1, step: 0.01, display: (v) => pct(v * 100, 0), groupe: "Logement & Santé" },
   // Énergie
