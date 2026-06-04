@@ -73,6 +73,7 @@ export interface CitizenProfile {
   capitalFinancierMensuel?: number;   // €/mois dividendes, rentes, PEA… → PFU
   heuresSup?: number;                 // heures supplémentaires par mois
   avantagesSalaries?: number;         // €/mois tickets resto, chèques vacances, CESU
+  niveauDependance?: number;          // 0=autonome 1=légère 2=modérée 3=lourde (GIR)
 }
 
 /** Les curseurs d'État (sous-ensemble MVP des 40 du plan). */
@@ -99,6 +100,9 @@ export interface StateParams {
   chequeEnergieBase: number;              // €/an (défaut 200, créé 2018, means-tested)
   plafonnementLoyersMultiplicateur: number; // 0.5–1.5 (1 = libre, <1 = encadrement)
   fraisScolairesMunicipaux: number;       // €/mois/enfant scolarisé (cantine + périscolaire)
+  tauxCreditImmobilier: number;           // taux annuel crédit immo (défaut ~3.5 %)
+  bouclierTarifaireEnergie: number;       // 0–1 (1 = maintenu, 0 = prix libres)
+  tauxCouvertureAPA: number;              // 0–1 (fraction couverte par l'APA dépendance)
 }
 
 /** Un indicateur calculé, avec sa valeur et l'explication de sa formule. */
@@ -123,6 +127,7 @@ export interface SimulationResult {
   empreinteCarbone: number;
   capaciteEpargne: number;
   coutTravailEmployeur: number;
+  capaciteEmpruntImmo: number;
 }
 
 export interface FullSimulation {

@@ -47,9 +47,9 @@ const profileRetraite: CitizenProfile = {
 describe("simulate — structure de sortie", () => {
   const state = defaultStateParams(2026);
 
-  it("retourne 9 indicateurs pour l'année sélectionnée", () => {
+  it("retourne 10 indicateurs pour l'année sélectionnée", () => {
     const { current } = simulate(profileSmic, state, 2026);
-    expect(current).toHaveLength(9);
+    expect(current).toHaveLength(10);
     const keys = current.map((i) => i.key);
     expect(keys).toContain("pouvoirAchat");
     expect(keys).toContain("tauxEffortLogement");
@@ -60,6 +60,7 @@ describe("simulate — structure de sortie", () => {
     expect(keys).toContain("empreinteCarbone");
     expect(keys).toContain("capaciteEpargne");
     expect(keys).toContain("coutTravailEmployeur");
+    expect(keys).toContain("capaciteEmpruntImmo");
   });
 
   it("timeline couvre 27 années (2000–2026)", () => {
@@ -345,6 +346,51 @@ describe("simulate — vague 3 : transport, loyer, scolaire, énergie, retraite 
     const paAvec = avecAv.find((i) => i.key === "pouvoirAchat")!.value;
     const paSans = sansAv.find((i) => i.key === "pouvoirAchat")!.value;
     expect(paAvec).toBeGreaterThan(paSans + 150); // ~200 €/mois nets indexés
+  });
+});
+
+describe("simulate — vague 4 : crédit immo, énergie, dépendance", () => {
+  const state = defaultStateParams(2026);
+
+  it("capaciteEmpruntImmo > 0 pour un salarié avec revenus positifs", () => {
+    const { current } = simulate(profileSmic, state, 2026);
+    const emprunt = current.find((i) => i.key === "capaciteEmpruntImmo")!;
+    expect(emprunt.value).toBeGreaterThan(0);
+  });
+
+  it("baisse du taux immobilier augmente la capacité d'emprunt", () => {
+    const stateBas = { ...state, tauxCreditImmobilier: 0.01 };
+    const stateHaut = { ...state, tauxCreditImmobilier: 0.05 };
+    const { current: bas } = simulate(profileSmic, stateBas, 2026);
+    const { current: haut } = simulate(profileSmic, stateHaut, 2026);
+    const empruntBas = bas.find((i) => i.key === "capaciteEmpruntImmo")!.value;
+    const empruntHaut = haut.find((i) => i.key === "capaciteEmpruntImmo")!.value;
+    expect(empruntBas).toBeGreaterThan(empruntHaut);
+  });
+
+  it("suppression du bouclier tarifaire augmente le coût de l'énergie (réduit PA)", () => {
+    const stateSansBouclier = { ...state, bouclierTarifaireEnergie: 0 };
+    const { current: avecBouclier } = simulate(profileSmic, state, 2026);
+    const { current: sansBouclier } = simulate(profileSmic, stateSansBouclier, 2026);
+    const paAvec = avecBouclier.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansBouclier.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans);
+  });
+
+  it("APA réduit le reste à charge d'un senior dépendant (niveau 2)", () => {
+    const profileSeniorDep: CitizenProfile = {
+      ...profileSmic,
+      age: 78,
+      contrat: "retraite",
+      niveauDependance: 2,
+    };
+    const stateApaPleine = { ...state, tauxCouvertureAPA: 1.0 };
+    const stateApaNulle = { ...state, tauxCouvertureAPA: 0.0 };
+    const { current: avecAPA } = simulate(profileSeniorDep, stateApaPleine, 2026);
+    const { current: sansAPA } = simulate(profileSeniorDep, stateApaNulle, 2026);
+    const paAvec = avecAPA.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansAPA.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans);
   });
 });
 

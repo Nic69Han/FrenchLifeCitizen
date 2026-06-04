@@ -40,9 +40,12 @@ const SLIDERS: SliderDef[] = [
   { key: "fraisScolairesMunicipaux", label: "Frais scolaires (cantine + périscolaire)", min: 0, max: 250, step: 5, display: (v) => `${v} €/enf./mois`, groupe: "Logement & Santé" },
   { key: "taxeFonciereTauxM2", label: "Taxe foncière (taux moyen)", min: 0, max: 25, step: 0.5, display: (v) => `${v.toFixed(1)} €/m²/an`, groupe: "Logement & Santé" },
   { key: "tauxRemboursementSante", label: "Remboursement Sécu (actes courants)", min: 0, max: 1, step: 0.01, display: (v) => pct(v * 100, 0), groupe: "Logement & Santé" },
+  { key: "tauxCreditImmobilier", label: "Taux crédit immobilier", min: 0.005, max: 0.10, step: 0.001, display: (v) => `${(v * 100).toFixed(1)} %`, groupe: "Logement & Santé" },
+  { key: "tauxCouvertureAPA", label: "Couverture APA dépendance", min: 0, max: 1, step: 0.05, display: (v) => pct(v * 100, 0), groupe: "Logement & Santé" },
   // Énergie
   { key: "taxeCarbone", label: "Taxe carbone", min: 0, max: 300, step: 5, display: (v) => `${v} €/t`, groupe: "Énergie" },
   { key: "ticpe", label: "TICPE additionnelle carburant", min: 0, max: 1, step: 0.02, display: (v) => `+${v.toFixed(2).replace(".", ",")} €/L`, groupe: "Énergie" },
+  { key: "bouclierTarifaireEnergie", label: "Bouclier tarifaire énergie", min: 0, max: 1, step: 0.05, display: (v) => `${Math.round(v * 100)} % plafond`, groupe: "Énergie" },
 ];
 
 const GROUPES = ["Fiscalité", "Social & Travail", "Retraites", "Logement & Santé", "Énergie"];

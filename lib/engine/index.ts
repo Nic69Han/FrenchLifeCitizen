@@ -13,6 +13,7 @@ import {
   loyerM2,
   aplBase,
   smicBrut,
+  tauxCreditImmo,
   defaultStateParams,
   trimestresCiblesGeneration,
   ageLegalGeneration,
@@ -116,7 +117,11 @@ function coutTransport(
 }
 
 /** Énergie du logement (chauffage + électricité courante). */
-function coutEnergie(profile: CitizenProfile, year: number): number {
+function coutEnergie(
+  profile: CitizenProfile,
+  year: number,
+  state: StateParams
+): number {
   const base = profile.surfaceM2 * 1.5; // €/m²/mois ordre de grandeur 2026
   const facteurChauffage: Record<string, number> = {
     fioul: 1.3,
@@ -126,7 +131,10 @@ function coutEnergie(profile: CitizenProfile, year: number): number {
     pompeChaleur: 0.7,
   };
   const f = facteurChauffage[profile.chauffage] ?? 1;
-  return base * f * (ipc(year) / ipc(2026));
+  // Bouclier tarifaire : quand = 0, les prix d'énergie augmentent de ~50 %
+  // (ordres de grandeur crise 2021-2022 sans plafonnement gouvernemental)
+  const facteurBouclier = 1 + (1 - state.bouclierTarifaireEnergie) * 0.5;
+  return base * f * (ipc(year) / ipc(2026)) * facteurBouclier;
 }
 
 /** APL estimées selon le profil (locataire / HLM, revenus, enfants). */
@@ -326,6 +334,38 @@ function fraisScolaires(
   return nbScolaires * state.fraisScolairesMunicipaux * (ipc(year) / ipc(2026));
 }
 
+/**
+ * Allocation Personnalisée d'Autonomie (APA) et coût de la dépendance.
+ * Basée sur le niveau GIR (Grille d'Invalidité et de Ressources).
+ * L'APA est means-tested : ticket modérateur de 0 % (bas revenus) à 90 % (hauts revenus).
+ */
+function calculDependance(
+  profile: CitizenProfile,
+  revenuNetAvantImpot: number,
+  year: number,
+  state: StateParams
+): { aide: number; cout: number } {
+  const niveau = profile.niveauDependance ?? 0;
+  if (niveau === 0 || profile.age < 60) return { aide: 0, cout: 0 };
+
+  // Coût mensuel du plan d'aide selon le niveau GIR (aide à domicile ou EHPAD)
+  const coutsBruts: Record<number, number> = {
+    1: 700,   // GIR 4 — aide légère (~3h/jour aide ménagère)
+    2: 1400,  // GIR 3 — aide modérée (~4h/jour, actes essentiels)
+    3: 2800,  // GIR 1-2 — lourde (EHPAD ou aide intensive, >6h/jour)
+  };
+  const cout = (coutsBruts[niveau] ?? 0) * (ipc(year) / ipc(2026));
+
+  // Ticket modérateur APA : dégressif selon revenu (0 % → 90 %)
+  const plafondHaut = state.smicBrutMensuel * 3;
+  const ticketPct = revenuNetAvantImpot >= plafondHaut
+    ? 0.9
+    : Math.max(0, 0.9 * (revenuNetAvantImpot - state.rsaSocle) /
+        Math.max(1, plafondHaut - state.rsaSocle));
+  const aide = cout * state.tauxCouvertureAPA * (1 - ticketPct);
+  return { aide, cout };
+}
+
 /** Reste à charge santé mensuel selon l'état de santé et le remboursement. */
 function resteAChargeSante(
   profile: CitizenProfile,
@@ -480,7 +520,10 @@ function computeYear(
     ? (profile.avantagesSalaries ?? 0) * (ipc(year) / ipc(2026))
     : 0;
 
-  const aides = aplx + alloc + chomageAide + pa + aah + chequeEn + avantages;
+  // APA (Allocation Personnalisée d'Autonomie) pour les seniors dépendants
+  const dependance = calculDependance(profile, revenuNetAvantImpot, year, state);
+
+  const aides = aplx + alloc + chomageAide + pa + aah + chequeEn + avantages + dependance.aide;
 
   // --- Dépenses contraintes ---
   const loyer =
@@ -498,7 +541,7 @@ function computeYear(
   const facteurTVANorm = (1 + state.tvaNormale) / (1 + tvaNormRef);
   const facteurTVARed  = (1 + state.tvaReduite) / 1.055;
 
-  const energie = coutEnergie(profile, year) * facteurTVARed;
+  const energie = coutEnergie(profile, year, state) * facteurTVARed;
   const alimentation =
     profile.budgetAlimentaireMensuel * (ipc(year) / ipc(2026)) * facteurTVARed;
   const santeRAC = resteAChargeSante(profile, state);
@@ -511,7 +554,7 @@ function computeYear(
 
   const depensesContraintes =
     loyer + transport + energie + alimentation + santeRAC
-    + abonnements + mutuelle + tf + garde + scolaire;
+    + abonnements + mutuelle + tf + garde + scolaire + dependance.cout;
 
   const pouvoirAchat =
     revenuNetAvantImpot - ir + aides + netCapital - depensesContraintes;
@@ -564,6 +607,21 @@ function computeYear(
       ? 0
       : Math.round(revenuBrutMensuel * (1 + state.tauxCotisationsPatronales));
 
+  // Capacité d'emprunt immobilier (règle 35 % endettement, durée 20 ans, apport 10 %)
+  // Mensualité max = revenu net × 35 %, moins éventuelles charges de crédit existantes
+  const mensualiteMax = Math.max(0, revenuNetAvantImpot + netCapital) * 0.35;
+  const mensualiteCredit = profile.logement === "proprietaireAvecCredit"
+    ? (profile.loyerOuMensualite > 0
+        ? profile.loyerOuMensualite * (ipc(year) / ipc(2026)) : 0)
+    : 0;
+  const mensualiteDisponible = Math.max(0, mensualiteMax - mensualiteCredit);
+  const tauxMensuel = state.tauxCreditImmobilier / 12;
+  const dureeM = 240; // 20 ans standard
+  const capital = tauxMensuel > 0
+    ? mensualiteDisponible * (1 - Math.pow(1 + tauxMensuel, -dureeM)) / tauxMensuel
+    : mensualiteDisponible * dureeM;
+  const capaciteEmpruntImmo = Math.round(capital / 0.90); // apport 10 % inclus
+
   return {
     result: {
       year,
@@ -576,6 +634,7 @@ function computeYear(
       empreinteCarbone: co2,
       capaciteEpargne,
       coutTravailEmployeur,
+      capaciteEmpruntImmo,
     },
     details: {
       revenuBrutMensuel,
@@ -745,6 +804,17 @@ export function simulate(
         `Brut salarié × (1 + cotisations patronales). Hors allègements Fillon ` +
         `(qui réduisent quasi à zéro les patronales au niveau du SMIC). ` +
         `Curseur tauxCotisationsPatronales = ${Math.round(state.tauxCotisationsPatronales * 100)} %.`,
+    },
+    {
+      key: "capaciteEmpruntImmo",
+      label: "Budget immobilier accessible",
+      value: result.capaciteEmpruntImmo,
+      unit: "€",
+      goodDirection: "up",
+      formula:
+        `Mensualité max (35 % revenu net) sur 20 ans au taux ${(state.tauxCreditImmobilier * 100).toFixed(1)} %. ` +
+        `Capital empruntable ÷ 0,90 (apport 10 %). Montre l'impact des taux d'intérêt sur ` +
+        `l'accès à la propriété.`,
     },
   ];
 

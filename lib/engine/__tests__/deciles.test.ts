@@ -33,10 +33,10 @@ describe("simulateDeciles — structure", () => {
     points.forEach((p) => expect(p.salaireNetMensuel).toBeGreaterThan(0));
   });
 
-  it("chaque décile a 9 indicateurs baseline et scenario", () => {
+  it("chaque décile a 10 indicateurs baseline et scenario", () => {
     points.forEach((p) => {
-      expect(p.baseline).toHaveLength(9);
-      expect(p.scenario).toHaveLength(9);
+      expect(p.baseline).toHaveLength(10);
+      expect(p.scenario).toHaveLength(10);
     });
   });
 });
@@ -127,20 +127,20 @@ describe("simulateDeciles — types de ménage", () => {
   const fam = simulateDeciles(state2026, state2026, 2026, "famille");
   const ret = simulateDeciles(state2026, state2026, 2026, "retraite");
 
-  it("famille : 9 déciles, 9 indicateurs chacun", () => {
+  it("famille : 9 déciles, 10 indicateurs chacun", () => {
     expect(fam).toHaveLength(9);
     fam.forEach((p) => {
-      expect(p.baseline).toHaveLength(9);
+      expect(p.baseline).toHaveLength(10);
       [...p.baseline, ...p.scenario].forEach((ind) => {
         expect(Number.isFinite(ind.value)).toBe(true);
       });
     });
   });
 
-  it("retraite : 9 déciles, 9 indicateurs chacun", () => {
+  it("retraite : 9 déciles, 10 indicateurs chacun", () => {
     expect(ret).toHaveLength(9);
     ret.forEach((p) => {
-      expect(p.baseline).toHaveLength(9);
+      expect(p.baseline).toHaveLength(10);
       [...p.baseline, ...p.scenario].forEach((ind) => {
         expect(Number.isFinite(ind.value)).toBe(true);
       });

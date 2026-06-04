@@ -158,5 +158,8 @@ export function defaultStateParams(year: number): StateParams {
     chequeEnergieBase: year >= 2018 ? 200 : 0, // créé 2018, ~200 €/an tranche 1
     plafonnementLoyersMultiplicateur: 1.0, // 1 = marché libre ; <1 = encadrement (Paris, Lille…)
     fraisScolairesMunicipaux: 120,      // ~120 €/mois/enfant (cantine QF + périscolaire moyen)
+    tauxCreditImmobilier: tauxCreditImmo(year) || 0.035, // taux historique réel (BdF)
+    bouclierTarifaireEnergie: 1.0,      // 1 = prix régulés maintenus (bouclier actif)
+    tauxCouvertureAPA: 0.50,            // APA couvre ~50 % du plan d'aide (moyen national)
   };
 }

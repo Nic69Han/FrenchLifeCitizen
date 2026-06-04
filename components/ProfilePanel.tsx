@@ -361,6 +361,26 @@ export function ProfilePanel() {
           />
         </Field>
 
+        {profile.age >= 60 && (
+          <Field
+            label={`Niveau de dépendance — ${
+              ["Autonome", "Légère (GIR 4)", "Modérée (GIR 3)", "Lourde (GIR 1-2)"][
+                profile.niveauDependance ?? 0
+              ]
+            }`}
+          >
+            <input
+              type="range"
+              min={0}
+              max={3}
+              step={1}
+              value={profile.niveauDependance ?? 0}
+              onChange={(e) => setProfile({ niveauDependance: +e.target.value })}
+              className="w-full"
+            />
+          </Field>
+        )}
+
         <Field label={`Budget alimentaire — ${euro(profile.budgetAlimentaireMensuel)}/mois`}>
           <input
             type="range"
