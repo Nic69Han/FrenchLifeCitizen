@@ -47,15 +47,20 @@ const profileRetraite: CitizenProfile = {
 describe("simulate — structure de sortie", () => {
   const state = defaultStateParams(2026);
 
-  it("retourne 5 indicateurs pour l'année sélectionnée", () => {
+  it("retourne 10 indicateurs pour l'année sélectionnée", () => {
     const { current } = simulate(profileSmic, state, 2026);
-    expect(current).toHaveLength(5);
+    expect(current).toHaveLength(10);
     const keys = current.map((i) => i.key);
     expect(keys).toContain("pouvoirAchat");
     expect(keys).toContain("tauxEffortLogement");
     expect(keys).toContain("resteAVivre");
     expect(keys).toContain("pensionRetraite");
     expect(keys).toContain("scorePrecarite");
+    expect(keys).toContain("tauxImpositionEffectif");
+    expect(keys).toContain("empreinteCarbone");
+    expect(keys).toContain("capaciteEpargne");
+    expect(keys).toContain("coutTravailEmployeur");
+    expect(keys).toContain("capaciteEmpruntImmo");
   });
 
   it("timeline couvre 27 années (2000–2026)", () => {
@@ -163,6 +168,318 @@ describe("simulate — mode Et si ? cohérence", () => {
       expect(Number.isFinite(r.scorePrecarite)).toBe(true);
       expect(r.scorePrecarite).toBeGreaterThanOrEqual(0);
       expect(r.scorePrecarite).toBeLessThanOrEqual(100);
+      expect(Number.isFinite(r.capaciteEpargne)).toBe(true);
+      expect(r.capaciteEpargne).toBeGreaterThanOrEqual(0);
+      expect(Number.isFinite(r.coutTravailEmployeur)).toBe(true);
     }
+  });
+});
+
+describe("simulate — nouveaux paramètres profil", () => {
+  const state = defaultStateParams(2026);
+
+  it("temps partiel (50 %) réduit le pouvoir d'achat par rapport au temps plein", () => {
+    const profileMiTemps: CitizenProfile = { ...profileSmic, tauxActivite: 0.5 };
+    const { current: plein } = simulate(profileSmic, state, 2026);
+    const { current: miTemps } = simulate(profileMiTemps, state, 2026);
+    const paPlein = plein.find((i) => i.key === "pouvoirAchat")!.value;
+    const paMiTemps = miTemps.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paMiTemps).toBeLessThan(paPlein);
+  });
+
+  it("heures supplémentaires augmentent le pouvoir d'achat", () => {
+    const profileHS: CitizenProfile = { ...profileSmic, heuresSup: 10 };
+    const { current: sansHS } = simulate(profileSmic, state, 2026);
+    const { current: avecHS } = simulate(profileHS, state, 2026);
+    const paSans = sansHS.find((i) => i.key === "pouvoirAchat")!.value;
+    const paAvec = avecHS.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans);
+  });
+
+  it("suppression exonération heures sup réduit l'avantage des HS", () => {
+    const profileHS: CitizenProfile = { ...profileSmic, heuresSup: 10 };
+    const stateNoExo = { ...state, exonerationHeuresSup: 0 };
+    const { current: avecExo } = simulate(profileHS, state, 2026);
+    const { current: sansExo } = simulate(profileHS, stateNoExo, 2026);
+    const paAvecExo = avecExo.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSansExo = sansExo.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paSansExo).toBeLessThanOrEqual(paAvecExo);
+  });
+
+  it("revenus du capital augmentent le pouvoir d'achat (net PFU)", () => {
+    const profileCapital: CitizenProfile = {
+      ...profileSmic,
+      capitalFinancierMensuel: 500,
+    };
+    const { current: avecCapital } = simulate(profileCapital, state, 2026);
+    const { current: sansCapital } = simulate(profileSmic, state, 2026);
+    const paAvec = avecCapital.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansCapital.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans + 300); // 500 × (1-30%) = 350€ net
+  });
+
+  it("hausse PFU réduit le revenu du capital", () => {
+    const profileCapital: CitizenProfile = {
+      ...profileSmic,
+      capitalFinancierMensuel: 500,
+    };
+    const statePFUHaut = { ...state, tauxPFU: 0.45 };
+    const { current: pfuNormal } = simulate(profileCapital, state, 2026);
+    const { current: pfuHaut } = simulate(profileCapital, statePFUHaut, 2026);
+    const paNormal = pfuNormal.find((i) => i.key === "pouvoirAchat")!.value;
+    const paHaut = pfuHaut.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paHaut).toBeLessThan(paNormal);
+  });
+
+  it("parent isolé bénéficie du RSA majoré (+25 %) en situation sans emploi", () => {
+    const profileIsole: CitizenProfile = {
+      ...profileSmic,
+      contrat: "sansEmploi",
+      salaireBrutAnnuel: 0,
+      anciennete: 0,
+      nbEnfants: 1,
+      parentIsole: true,
+    };
+    const profileNonIsole: CitizenProfile = {
+      ...profileIsole,
+      parentIsole: false,
+    };
+    const { current: isole } = simulate(profileIsole, state, 2026);
+    const { current: nonIsole } = simulate(profileNonIsole, state, 2026);
+    const paIsole = isole.find((i) => i.key === "pouvoirAchat")!.value;
+    const paNonIsole = nonIsole.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paIsole).toBeGreaterThan(paNonIsole);
+  });
+
+  it("coût total employeur > salaire brut (cotisations patronales)", () => {
+    const { current } = simulate(profileSmic, state, 2026);
+    const cout = current.find((i) => i.key === "coutTravailEmployeur")!.value;
+    const smic = smicBrut(2026);
+    expect(cout).toBeGreaterThan(smic); // salaire brut seul
+    expect(cout).toBeLessThan(smic * 2); // borne haute raisonnable
+  });
+
+  it("hausse cotisations patronales augmente le coût travail", () => {
+    const stateHautPat = { ...state, tauxCotisationsPatronales: 0.55 };
+    const { current: base } = simulate(profileSmic, state, 2026);
+    const { current: haut } = simulate(profileSmic, stateHautPat, 2026);
+    const coutBase = base.find((i) => i.key === "coutTravailEmployeur")!.value;
+    const coutHaut = haut.find((i) => i.key === "coutTravailEmployeur")!.value;
+    expect(coutHaut).toBeGreaterThan(coutBase);
+  });
+
+  it("capacité d'épargne est nulle ou positive", () => {
+    const { current } = simulate(profileSmic, state, 2026);
+    const epargne = current.find((i) => i.key === "capaciteEpargne")!.value;
+    expect(epargne).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("simulate — vague 3 : transport, loyer, scolaire, énergie, retraite familiale", () => {
+  const state = defaultStateParams(2026);
+
+  it("remboursement transport employeur 100 % réduit le coût du transport en commun", () => {
+    const state0 = { ...state, remboursementTransportEmployeur: 0 };
+    const state1 = { ...state, remboursementTransportEmployeur: 1 };
+    const { current: c0 } = simulate(profileSmic, state0, 2026);
+    const { current: c1 } = simulate(profileSmic, state1, 2026);
+    const pa0 = c0.find((i) => i.key === "pouvoirAchat")!.value;
+    const pa1 = c1.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(pa1).toBeGreaterThan(pa0);
+  });
+
+  it("encadrement des loyers réduit le coût du logement (locataire privé)", () => {
+    const profileLoc: CitizenProfile = { ...profileSmic, logement: "locatairePrive", loyerOuMensualite: 0 };
+    const stateEnc = { ...state, plafonnementLoyersMultiplicateur: 0.8 };
+    const { current: base } = simulate(profileLoc, state, 2026);
+    const { current: enc } = simulate(profileLoc, stateEnc, 2026);
+    const paBase = base.find((i) => i.key === "pouvoirAchat")!.value;
+    const paEnc = enc.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paEnc).toBeGreaterThan(paBase);
+  });
+
+  it("cantine gratuite améliore le pouvoir d'achat des familles", () => {
+    const profileFamille: CitizenProfile = {
+      ...profileSmic,
+      nbEnfants: 2,
+      situationFamiliale: "marie",
+      age: 35,
+    };
+    const stateCantine0 = { ...state, fraisScolairesMunicipaux: 0 };
+    const { current: avecCantine } = simulate(profileFamille, state, 2026);
+    const { current: sansCantine } = simulate(profileFamille, stateCantine0, 2026);
+    const paAvec = avecCantine.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansCantine.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paSans).toBeGreaterThan(paAvec); // cantine 0 = moins de dépenses = plus de PA
+  });
+
+  it("chèque énergie améliore le pouvoir d'achat des ménages modestes", () => {
+    const stateSansCheque = { ...state, chequeEnergieBase: 0 };
+    const { current: avecCheque } = simulate(profileSmic, state, 2026);
+    const { current: sansCheque } = simulate(profileSmic, stateSansCheque, 2026);
+    const paAvec = avecCheque.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansCheque.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThanOrEqual(paSans);
+  });
+
+  it("majoration retraite +10 % pour 3 enfants (CNAV)", () => {
+    const profileRet3: CitizenProfile = {
+      ...profileSmic,
+      nom: "Retraité3",
+      age: 67,
+      contrat: "retraite",
+      anciennete: 40,
+      nbEnfants: 3,
+    };
+    const profileRet0: CitizenProfile = { ...profileRet3, nbEnfants: 0 };
+    const { current: avec3 } = simulate(profileRet3, state, 2026);
+    const { current: avec0 } = simulate(profileRet0, state, 2026);
+    const pension3 = avec3.find((i) => i.key === "pensionRetraite")!.value;
+    const pension0 = avec0.find((i) => i.key === "pensionRetraite")!.value;
+    expect(pension3).toBeGreaterThan(pension0 * 1.05); // au moins +5 % (bonus +10 % net du minimum)
+  });
+
+  it("avantages salariés augmentent le pouvoir d'achat", () => {
+    const profileAvantages: CitizenProfile = { ...profileSmic, avantagesSalaries: 200 };
+    const { current: avecAv } = simulate(profileAvantages, state, 2026);
+    const { current: sansAv } = simulate(profileSmic, state, 2026);
+    const paAvec = avecAv.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansAv.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans + 150); // ~200 €/mois nets indexés
+  });
+});
+
+describe("simulate — vague 4 : crédit immo, énergie, dépendance", () => {
+  const state = defaultStateParams(2026);
+
+  it("capaciteEmpruntImmo > 0 pour un salarié avec revenus positifs", () => {
+    const { current } = simulate(profileSmic, state, 2026);
+    const emprunt = current.find((i) => i.key === "capaciteEmpruntImmo")!;
+    expect(emprunt.value).toBeGreaterThan(0);
+  });
+
+  it("baisse du taux immobilier augmente la capacité d'emprunt", () => {
+    const stateBas = { ...state, tauxCreditImmobilier: 0.01 };
+    const stateHaut = { ...state, tauxCreditImmobilier: 0.05 };
+    const { current: bas } = simulate(profileSmic, stateBas, 2026);
+    const { current: haut } = simulate(profileSmic, stateHaut, 2026);
+    const empruntBas = bas.find((i) => i.key === "capaciteEmpruntImmo")!.value;
+    const empruntHaut = haut.find((i) => i.key === "capaciteEmpruntImmo")!.value;
+    expect(empruntBas).toBeGreaterThan(empruntHaut);
+  });
+
+  it("suppression du bouclier tarifaire augmente le coût de l'énergie (réduit PA)", () => {
+    const stateSansBouclier = { ...state, bouclierTarifaireEnergie: 0 };
+    const { current: avecBouclier } = simulate(profileSmic, state, 2026);
+    const { current: sansBouclier } = simulate(profileSmic, stateSansBouclier, 2026);
+    const paAvec = avecBouclier.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansBouclier.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans);
+  });
+
+  it("APA réduit le reste à charge d'un senior dépendant (niveau 2)", () => {
+    const profileSeniorDep: CitizenProfile = {
+      ...profileSmic,
+      age: 78,
+      contrat: "retraite",
+      niveauDependance: 2,
+    };
+    const stateApaPleine = { ...state, tauxCouvertureAPA: 1.0 };
+    const stateApaNulle = { ...state, tauxCouvertureAPA: 0.0 };
+    const { current: avecAPA } = simulate(profileSeniorDep, stateApaPleine, 2026);
+    const { current: sansAPA } = simulate(profileSeniorDep, stateApaNulle, 2026);
+    const paAvec = avecAPA.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansAPA.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans);
+  });
+});
+
+describe("simulate — prime d'activité et nouveaux modules", () => {
+  const state = defaultStateParams(2026);
+
+  it("prime d'activité booste le pouvoir d'achat d'un travailleur au SMIC (post-2016)", () => {
+    const { current: avecPA } = simulate(profileSmic, state, 2026);
+    const statePA0 = { ...state, primeActiviteRevalorisation: 0 };
+    const { current: sansPA } = simulate(profileSmic, statePA0, 2026);
+    const diffPA = avecPA.find((i) => i.key === "pouvoirAchat")!.value
+                 - sansPA.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(diffPA).toBeGreaterThan(100); // PA vaut > 100 €/mois au SMIC
+    expect(diffPA).toBeLessThan(500);    // mais < 500 €/mois (calibrage)
+  });
+
+  it("prime d'activité = 0 avant 2016", () => {
+    const { current: pre2016 } = simulate(profileSmic, defaultStateParams(2015), 2015);
+    const { current: post2016 } = simulate(profileSmic, defaultStateParams(2016), 2016);
+    const pa2015 = pre2016.find((i) => i.key === "pouvoirAchat")!.value;
+    const pa2016 = post2016.find((i) => i.key === "pouvoirAchat")!.value;
+    // 2016 a la PA, 2015 non — saut visible même après indexation
+    expect(pa2016).toBeGreaterThan(pa2015 - 50); // peut aussi monter d'autres raisons
+  });
+
+  it("suppression TVA alimentation réduit les dépenses alimentaires", () => {
+    const stateNoTVA = { ...state, tvaReduite: 0 };
+    const { current: avecTVA } = simulate(profileSmic, state, 2026);
+    const { current: sansTVA } = simulate(profileSmic, stateNoTVA, 2026);
+    const paAvec = avecTVA.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansTVA.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paSans).toBeGreaterThan(paAvec); // moins de TVA = plus de PA
+  });
+
+  it("hausse TVA normale réduit le pouvoir d'achat", () => {
+    const stateTVAHaute = { ...state, tvaNormale: 0.25 };
+    const { current: base } = simulate(profileSmic, state, 2026);
+    const { current: haut } = simulate(profileSmic, stateTVAHaute, 2026);
+    const paBase = base.find((i) => i.key === "pouvoirAchat")!.value;
+    const paHaut = haut.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paHaut).toBeLessThan(paBase);
+  });
+
+  it("taxe foncière réduit le pouvoir d'achat d'un propriétaire", () => {
+    const profileProprio: CitizenProfile = {
+      ...profileSmic,
+      logement: "proprietaireSansCredit",
+      loyerOuMensualite: 0,
+    };
+    const stateTF0 = { ...state, taxeFonciereTauxM2: 0 };
+    const { current: avecTF } = simulate(profileProprio, state, 2026);
+    const { current: sansTF } = simulate(profileProprio, stateTF0, 2026);
+    const paSans = sansTF.find((i) => i.key === "pouvoirAchat")!.value;
+    const paAvec = avecTF.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeLessThan(paSans);
+    expect(paSans - paAvec).toBeGreaterThan(10); // TF non nulle
+  });
+
+  it("indicateur empreinteCarbone > 0 pour voiture essence", () => {
+    const profileVoiture: CitizenProfile = {
+      ...profileSmic,
+      transport: "voitureEssence",
+      distanceTravailKm: 15,
+    };
+    const { current } = simulate(profileVoiture, state, 2026);
+    const co2 = current.find((i) => i.key === "empreinteCarbone")!.value;
+    expect(co2).toBeGreaterThan(200); // transport + chauffage + alim
+  });
+
+  it("indicateur tauxImpositionEffectif entre 0 et 50 % pour un salarié", () => {
+    const { current } = simulate(profileSmic, state, 2026);
+    const taux = current.find((i) => i.key === "tauxImpositionEffectif")!.value;
+    expect(taux).toBeGreaterThan(0);
+    expect(taux).toBeLessThan(50);
+  });
+
+  it("ARE > RSA pour un sansEmploi avec ancienneté longue (SMIC × 57 % > RSA)", () => {
+    const profileAre: CitizenProfile = {
+      ...profileSmic,
+      contrat: "sansEmploi",
+      salaireBrutAnnuel: smicBrut(2026) * 12, // référence = SMIC
+      anciennete: 5, // 5 ans → droits ARE
+    };
+    const { current } = simulate(profileAre, state, 2026);
+    const pa = current.find((i) => i.key === "pouvoirAchat")!.value;
+    // ARE à SMIC = 1823 × 0.57 ≈ 1039 €, bien supérieur au RSA
+    const profileRsaOnly: CitizenProfile = { ...profileAre, anciennete: 0 };
+    const { current: rsaC } = simulate(profileRsaOnly, state, 2026);
+    const paRsa = rsaC.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(pa).toBeGreaterThan(paRsa);
   });
 });

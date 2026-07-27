@@ -54,9 +54,9 @@ const REGISTRY: SeriesSpec[] = [
   // API respectives (idbank null ⇒ valeurs calibrées conservées pour l'instant).
   {
     key: "tauxCreditImmo",
-    idbank: null, // Banque de France — Webstat (taux moyen des crédits à l'habitat)
-    label: "Taux moyen des crédits immobiliers aux particuliers",
-    source: "Banque de France — Webstat (à brancher)",
+    idbank: null, // BCE — MIR dataset (branché via fetchEcbMir, ci-dessous)
+    label: "Taux moyen des crédits immobiliers aux particuliers (>5 ans, nouveaux contrats)",
+    source: "BCE — MIR/M.FR.B.A2C.F.R.A.2250.EUR.N",
     round: 2,
   },
   {
@@ -138,6 +138,28 @@ function parseSdmxJson(json: SdmxJson): Map<string, number> {
   return out;
 }
 
+// --- Fetch BCE MIR (Monetary Interest Rates) --------------------------------
+// Série MIR/M.FR.B.A2C.F.R.A.2250.EUR.N :
+//   Taux annuel moyen des crédits nouveaux à l'habitat aux ménages, >5 ans
+//   Source : BCE Statistical Data Warehouse (data-api.ecb.europa.eu)
+const ECB_DATA_API = "https://data-api.ecb.europa.eu/service/data";
+
+async function fetchEcbMir(
+  key: string,
+  startPeriod: number,
+  endPeriod: number
+): Promise<Map<number, number>> {
+  const url =
+    `${ECB_DATA_API}/${key}?format=jsondata` +
+    `&startPeriod=${startPeriod}-01&endPeriod=${endPeriod}-12`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`BCE HTTP ${res.status}: ${url}`);
+  const json = (await res.json()) as SdmxJson;
+  const monthly = parseSdmxJson(json);
+  if (monthly.size === 0) throw new Error("aucune observation BCE parsée");
+  return toAnnualMean(monthly);
+}
+
 async function fetchInseeSeries(idbank: string): Promise<Map<string, number>> {
   const url = `${INSEE_BDM_BASE}/${idbank}?startPeriod=${YEAR_MIN}&endPeriod=${YEAR_MAX}`;
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -211,6 +233,28 @@ async function main() {
   const realized: string[] = [];
   for (const spec of REGISTRY) {
     if (!spec.idbank) {
+      // Cas spécial : tauxCreditImmo branché sur l'API BCE MIR
+      if (spec.key === "tauxCreditImmo") {
+        try {
+          const annual = await fetchEcbMir(
+            "MIR/M.FR.B.A2C.F.R.A.2250.EUR.N",
+            YEAR_MIN,
+            YEAR_MAX
+          );
+          const arr = toYearArray(annual, spec);
+          data[spec.key] = arr;
+          realized.push(spec.key);
+          console.log(
+            `✓ ${spec.key} : ${annual.size} années réelles (BCE MIR) ` +
+              `— 2024=${arr[YEAR_MAX - YEAR_MIN - 2]}%`
+          );
+        } catch (e) {
+          console.warn(
+            `⚠ ${spec.key} : échec BCE (${(e as Error).message}) — valeurs calibrées conservées`
+          );
+        }
+        continue;
+      }
       console.log(`• ${spec.key} : source non-INSEE, conservé calibré (${spec.source})`);
       continue;
     }

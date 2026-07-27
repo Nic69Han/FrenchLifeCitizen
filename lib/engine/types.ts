@@ -67,22 +67,42 @@ export interface CitizenProfile {
   budgetAlimentaireMensuel: number;
   abonnementsMensuels: number;
   loisirsMensuels: number;
+  // Champs optionnels (rétrocompatibles — undefined = valeur par défaut)
+  tauxActivite?: number;              // 0.1–1.0, défaut 1 (temps plein)
+  parentIsole?: boolean;              // parent isolé : RSA majoré, PA bonifiée
+  capitalFinancierMensuel?: number;   // €/mois dividendes, rentes, PEA… → PFU
+  heuresSup?: number;                 // heures supplémentaires par mois
+  avantagesSalaries?: number;         // €/mois tickets resto, chèques vacances, CESU
+  niveauDependance?: number;          // 0=autonome 1=légère 2=modérée 3=lourde (GIR)
 }
 
 /** Les curseurs d'État (sous-ensemble MVP des 40 du plan). */
 export interface StateParams {
-  tauxCotisationsSalariales: number; // 0–0.40
-  tauxMarginalIR: number; // tranche haute, 0–0.75
-  tvaNormale: number; // 0.05–0.25
-  smicBrutMensuel: number; // €
-  allocFamilialesParEnfant: number; // €/enfant/mois
-  aplMultiplicateur: number; // 0–2 (modulation des APL)
-  ageLegalRetraite: number; // 60–70
+  tauxCotisationsSalariales: number;  // 0–0.40
+  tauxMarginalIR: number;             // tranche haute, 0–0.75
+  tvaNormale: number;                 // 0.05–0.25
+  tvaReduite: number;                 // TVA alimentation/médicaments (défaut 5.5 %)
+  smicBrutMensuel: number;            // €
+  allocFamilialesParEnfant: number;   // €/enfant/mois
+  aplMultiplicateur: number;          // 0–2 (modulation des APL)
+  primeActiviteRevalorisation: number; // 0 = supprimée, 1 = réelle, >1 = hausse
+  ageLegalRetraite: number;           // 60–70
   trimestresRequis: number;
-  taxeCarbone: number; // €/tonne (impacte le carburant)
-  ticpe: number; // €/litre additionnel
-  rsaSocle: number; // €/mois
-  tauxRemboursementSante: number; // 0–1
+  taxeCarbone: number;                // €/tonne (impacte le carburant)
+  ticpe: number;                      // €/litre additionnel
+  rsaSocle: number;                   // €/mois
+  tauxRemboursementSante: number;     // 0–1
+  taxeFonciereTauxM2: number;         // €/m²/an (taxe foncière, défaut ~12)
+  tauxCotisationsPatronales: number;      // ~0.42 (cotisations employeur, hors allègements)
+  exonerationHeuresSup: number;           // 0–1 (fraction exonérée IR heures sup)
+  tauxPFU: number;                        // flat tax revenus du capital (défaut 0.30)
+  remboursementTransportEmployeur: number; // 0–1 (défaut 0.5, obligatoire légal)
+  chequeEnergieBase: number;              // €/an (défaut 200, créé 2018, means-tested)
+  plafonnementLoyersMultiplicateur: number; // 0.5–1.5 (1 = libre, <1 = encadrement)
+  fraisScolairesMunicipaux: number;       // €/mois/enfant scolarisé (cantine + périscolaire)
+  tauxCreditImmobilier: number;           // taux annuel crédit immo (défaut ~3.5 %)
+  bouclierTarifaireEnergie: number;       // 0–1 (1 = maintenu, 0 = prix libres)
+  tauxCouvertureAPA: number;              // 0–1 (fraction couverte par l'APA dépendance)
 }
 
 /** Un indicateur calculé, avec sa valeur et l'explication de sa formule. */
@@ -103,6 +123,11 @@ export interface SimulationResult {
   resteAVivre: number;
   pensionRetraite: number;
   scorePrecarite: number;
+  tauxImpositionEffectif: number;
+  empreinteCarbone: number;
+  capaciteEpargne: number;
+  coutTravailEmployeur: number;
+  capaciteEmpruntImmo: number;
 }
 
 export interface FullSimulation {
