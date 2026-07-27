@@ -1,0 +1,118 @@
+import type { CitizenProfile } from "@/lib/engine/types";
+
+export interface Archetype {
+  id: string;
+  emoji: string;
+  titre: string;
+  description: string;
+  profile: CitizenProfile;
+}
+
+export const ARCHETYPES: Archetype[] = [
+  {
+    id: "fatima",
+    emoji: "🧕",
+    titre: "Fatima, 34 ans",
+    description: "Aide-soignante en CDI, 2 enfants, locataire HLM à Saint-Denis.",
+    profile: {
+      nom: "Fatima",
+      age: 34,
+      situationFamiliale: "marie",
+      nbEnfants: 2,
+      csp: "employe",
+      salaireBrutAnnuel: 24000,
+      contrat: "cdi",
+      anciennete: 9,
+      logement: "hlm",
+      surfaceM2: 65,
+      chauffage: "gaz",
+      loyerOuMensualite: 0,
+      transport: "transportCommun",
+      distanceTravailKm: 8,
+      sante: "bonne",
+      budgetAlimentaireMensuel: 520,
+      abonnementsMensuels: 70,
+      loisirsMensuels: 120,
+    },
+  },
+  {
+    id: "bernard",
+    emoji: "👨‍🌾",
+    titre: "Bernard, 58 ans",
+    description: "Agriculteur propriétaire dans le Cantal, conjointe au foyer.",
+    profile: {
+      nom: "Bernard",
+      age: 58,
+      situationFamiliale: "marie",
+      nbEnfants: 0,
+      csp: "agriculteur",
+      salaireBrutAnnuel: 21000,
+      contrat: "independant",
+      anciennete: 35,
+      logement: "proprietaireSansCredit",
+      surfaceM2: 130,
+      chauffage: "fioul",
+      loyerOuMensualite: 0,
+      transport: "voitureDiesel",
+      distanceTravailKm: 25,
+      sante: "ald",
+      budgetAlimentaireMensuel: 450,
+      abonnementsMensuels: 55,
+      loisirsMensuels: 80,
+    },
+  },
+  {
+    id: "claire",
+    emoji: "👩‍💼",
+    titre: "Claire, 42 ans",
+    description: "Cadre dans la tech, divorcée, 1 enfant, propriétaire à Paris.",
+    profile: {
+      nom: "Claire",
+      age: 42,
+      situationFamiliale: "divorce",
+      nbEnfants: 1,
+      csp: "cadre",
+      salaireBrutAnnuel: 62000,
+      contrat: "cdi",
+      anciennete: 18,
+      logement: "proprietaireAvecCredit",
+      surfaceM2: 70,
+      chauffage: "electrique",
+      loyerOuMensualite: 1650,
+      transport: "transportCommun",
+      distanceTravailKm: 6,
+      sante: "bonne",
+      budgetAlimentaireMensuel: 600,
+      abonnementsMensuels: 110,
+      loisirsMensuels: 350,
+    },
+  },
+  {
+    id: "mohamed",
+    emoji: "🧑‍🔧",
+    titre: "Mohamed, 27 ans",
+    description: "Intérimaire dans le BTP, célibataire, locataire en ville moyenne.",
+    profile: {
+      nom: "Mohamed",
+      age: 27,
+      situationFamiliale: "celibataire",
+      nbEnfants: 0,
+      csp: "ouvrier",
+      salaireBrutAnnuel: 22500,
+      contrat: "interim",
+      anciennete: 4,
+      logement: "locatairePrive",
+      surfaceM2: 35,
+      chauffage: "electrique",
+      loyerOuMensualite: 620,
+      transport: "voitureEssence",
+      distanceTravailKm: 28,
+      sante: "bonne",
+      budgetAlimentaireMensuel: 320,
+      abonnementsMensuels: 65,
+      loisirsMensuels: 150,
+    },
+  },
+];
+
+export const DEFAULT_PROFILE: CitizenProfile = ARCHETYPES[0].profile;

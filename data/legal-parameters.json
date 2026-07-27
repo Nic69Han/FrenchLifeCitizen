@@ -1,0 +1,897 @@
+{
+  "meta": {
+    "description": "Paramètres légaux réels de la France, ingérés depuis OpenFisca-France (droit fiscal et social encodé, valeurs datées et sourcées JO/Légifrance).",
+    "source": "openfisca/openfisca-france",
+    "sourceUrl": "https://github.com/openfisca/openfisca-france",
+    "commit": "9793bc729d0fb914bfc3b270f8f1aba47a700015",
+    "ingestedAt": "2026-05-30",
+    "yearMin": 2000,
+    "yearMax": 2026,
+    "note": "OpenFisca encode le DROIT (paramètres légaux), pas les statistiques. IPC, carburant, loyers, taux de crédit restent dans economic-series.json.",
+    "tauxCotisationsNote": "tauxCotisationsSalariales = vieillesse + maladie + CSG/CRDS (sur assiette abattue) réels OpenFisca, + complément AGIRC-ARRCO T1 documenté (~3,1 % avant 2019, ~4,01 % depuis). Hypothèse : rémunération sous le PSS."
+  },
+  "years": [
+    2000,
+    2001,
+    2002,
+    2003,
+    2004,
+    2005,
+    2006,
+    2007,
+    2008,
+    2009,
+    2010,
+    2011,
+    2012,
+    2013,
+    2014,
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "smicBrutMensuel": [
+    1049,
+    1083,
+    1012,
+    1036,
+    1091,
+    1154,
+    1218,
+    1254,
+    1280,
+    1321,
+    1344,
+    1365,
+    1398,
+    1430,
+    1445,
+    1458,
+    1467,
+    1480,
+    1498,
+    1521,
+    1539,
+    1555,
+    1603,
+    1709,
+    1767,
+    1802,
+    1823
+  ],
+  "pssMensuel": [
+    2241,
+    2279,
+    2352,
+    2432,
+    2476,
+    2516,
+    2589,
+    2682,
+    2773,
+    2859,
+    2885,
+    2946,
+    3031,
+    3086,
+    3129,
+    3170,
+    3218,
+    3269,
+    3311,
+    3377,
+    3428,
+    3428,
+    3428,
+    3666,
+    3864,
+    3925,
+    4005
+  ],
+  "tvaNormale": [
+    0.206,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.196,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2
+  ],
+  "tauxCotisationsSalariales": [
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.111,
+    0.128,
+    0.1371,
+    0.1371,
+    0.1371,
+    0.1371,
+    0.1371,
+    0.1371,
+    0.1371,
+    0.1371
+  ],
+  "rsaSocleBase": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    460,
+    467,
+    475,
+    483,
+    499,
+    514,
+    524,
+    535,
+    545,
+    551,
+    560,
+    565,
+    565,
+    599,
+    608,
+    636,
+    647
+  ],
+  "allocFamilialesDeuxEnfants": [
+    690,
+    703,
+    109,
+    111,
+    113,
+    116,
+    118,
+    120,
+    121,
+    125,
+    125,
+    126,
+    126,
+    128,
+    129,
+    130,
+    130,
+    130,
+    131,
+    132,
+    132,
+    133,
+    133,
+    141,
+    143,
+    149,
+    152
+  ],
+  "bmaf": [
+    2157.54,
+    2196.38,
+    341.87,
+    347.68,
+    353.59,
+    361.37,
+    367.87,
+    374.12,
+    377.86,
+    389.2,
+    389.2,
+    395.04,
+    395.04,
+    399,
+    403.79,
+    406.21,
+    406.21,
+    406.62,
+    407.84,
+    411.92,
+    413.16,
+    414.4,
+    414.81,
+    439.17,
+    445.93,
+    466.44,
+    474.37
+  ],
+  "irBracketsByYear": {
+    "2000": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 4055,
+        "rate": 0.0825
+      },
+      {
+        "threshold": 7976,
+        "rate": 0.2175
+      },
+      {
+        "threshold": 14039,
+        "rate": 0.3175
+      },
+      {
+        "threshold": 22732,
+        "rate": 0.4175
+      },
+      {
+        "threshold": 36987,
+        "rate": 0.4725
+      },
+      {
+        "threshold": 45613,
+        "rate": 0.5325
+      }
+    ],
+    "2001": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 628,
+        "rate": 0.075
+      },
+      {
+        "threshold": 1235,
+        "rate": 0.21
+      },
+      {
+        "threshold": 2175,
+        "rate": 0.31
+      },
+      {
+        "threshold": 3521,
+        "rate": 0.41
+      },
+      {
+        "threshold": 5729,
+        "rate": 0.4675
+      },
+      {
+        "threshold": 7065,
+        "rate": 0.5275
+      }
+    ],
+    "2002": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 4191,
+        "rate": 0.0705
+      },
+      {
+        "threshold": 8242,
+        "rate": 0.1974
+      },
+      {
+        "threshold": 14506,
+        "rate": 0.2914
+      },
+      {
+        "threshold": 23489,
+        "rate": 0.3854
+      },
+      {
+        "threshold": 38218,
+        "rate": 0.4394
+      },
+      {
+        "threshold": 47131,
+        "rate": 0.4958
+      }
+    ],
+    "2003": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 4262,
+        "rate": 0.0683
+      },
+      {
+        "threshold": 8382,
+        "rate": 0.1914
+      },
+      {
+        "threshold": 14753,
+        "rate": 0.2826
+      },
+      {
+        "threshold": 23888,
+        "rate": 0.3738
+      },
+      {
+        "threshold": 38868,
+        "rate": 0.4262
+      },
+      {
+        "threshold": 47932,
+        "rate": 0.4809
+      }
+    ],
+    "2004": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 4334,
+        "rate": 0.0683
+      },
+      {
+        "threshold": 8524,
+        "rate": 0.1914
+      },
+      {
+        "threshold": 15004,
+        "rate": 0.2826
+      },
+      {
+        "threshold": 24294,
+        "rate": 0.3738
+      },
+      {
+        "threshold": 39529,
+        "rate": 0.4262
+      },
+      {
+        "threshold": 48747,
+        "rate": 0.4809
+      }
+    ],
+    "2005": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 4412,
+        "rate": 0.0683
+      },
+      {
+        "threshold": 8677,
+        "rate": 0.1914
+      },
+      {
+        "threshold": 15274,
+        "rate": 0.2826
+      },
+      {
+        "threshold": 24731,
+        "rate": 0.3738
+      },
+      {
+        "threshold": 40241,
+        "rate": 0.4262
+      },
+      {
+        "threshold": 49624,
+        "rate": 0.4809
+      }
+    ],
+    "2006": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 5614,
+        "rate": 0.055
+      },
+      {
+        "threshold": 11198,
+        "rate": 0.14
+      },
+      {
+        "threshold": 24872,
+        "rate": 0.3
+      },
+      {
+        "threshold": 66679,
+        "rate": 0.4
+      }
+    ],
+    "2007": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 5687,
+        "rate": 0.055
+      },
+      {
+        "threshold": 11344,
+        "rate": 0.14
+      },
+      {
+        "threshold": 25195,
+        "rate": 0.3
+      },
+      {
+        "threshold": 67546,
+        "rate": 0.4
+      }
+    ],
+    "2008": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 5852,
+        "rate": 0.055
+      },
+      {
+        "threshold": 11673,
+        "rate": 0.14
+      },
+      {
+        "threshold": 25926,
+        "rate": 0.3
+      },
+      {
+        "threshold": 69505,
+        "rate": 0.4
+      }
+    ],
+    "2009": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 5875,
+        "rate": 0.055
+      },
+      {
+        "threshold": 11720,
+        "rate": 0.14
+      },
+      {
+        "threshold": 26030,
+        "rate": 0.3
+      },
+      {
+        "threshold": 69783,
+        "rate": 0.4
+      }
+    ],
+    "2010": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 5963,
+        "rate": 0.055
+      },
+      {
+        "threshold": 11896,
+        "rate": 0.14
+      },
+      {
+        "threshold": 26420,
+        "rate": 0.3
+      },
+      {
+        "threshold": 70830,
+        "rate": 0.41
+      }
+    ],
+    "2011": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 5963,
+        "rate": 0.055
+      },
+      {
+        "threshold": 11896,
+        "rate": 0.14
+      },
+      {
+        "threshold": 26420,
+        "rate": 0.3
+      },
+      {
+        "threshold": 70830,
+        "rate": 0.41
+      }
+    ],
+    "2012": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 5963,
+        "rate": 0.055
+      },
+      {
+        "threshold": 11896,
+        "rate": 0.14
+      },
+      {
+        "threshold": 26420,
+        "rate": 0.3
+      },
+      {
+        "threshold": 70830,
+        "rate": 0.41
+      },
+      {
+        "threshold": 150000,
+        "rate": 0.45
+      }
+    ],
+    "2013": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 6011,
+        "rate": 0.055
+      },
+      {
+        "threshold": 11991,
+        "rate": 0.14
+      },
+      {
+        "threshold": 26631,
+        "rate": 0.3
+      },
+      {
+        "threshold": 71397,
+        "rate": 0.41
+      },
+      {
+        "threshold": 151200,
+        "rate": 0.45
+      }
+    ],
+    "2014": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 9690,
+        "rate": 0.14
+      },
+      {
+        "threshold": 26764,
+        "rate": 0.3
+      },
+      {
+        "threshold": 71754,
+        "rate": 0.41
+      },
+      {
+        "threshold": 151956,
+        "rate": 0.45
+      }
+    ],
+    "2015": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 9700,
+        "rate": 0.14
+      },
+      {
+        "threshold": 26791,
+        "rate": 0.3
+      },
+      {
+        "threshold": 71826,
+        "rate": 0.41
+      },
+      {
+        "threshold": 152108,
+        "rate": 0.45
+      }
+    ],
+    "2016": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 9710,
+        "rate": 0.14
+      },
+      {
+        "threshold": 26818,
+        "rate": 0.3
+      },
+      {
+        "threshold": 71898,
+        "rate": 0.41
+      },
+      {
+        "threshold": 152260,
+        "rate": 0.45
+      }
+    ],
+    "2017": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 9807,
+        "rate": 0.14
+      },
+      {
+        "threshold": 27086,
+        "rate": 0.3
+      },
+      {
+        "threshold": 72617,
+        "rate": 0.41
+      },
+      {
+        "threshold": 153783,
+        "rate": 0.45
+      }
+    ],
+    "2018": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 9964,
+        "rate": 0.14
+      },
+      {
+        "threshold": 27519,
+        "rate": 0.3
+      },
+      {
+        "threshold": 73779,
+        "rate": 0.41
+      },
+      {
+        "threshold": 156244,
+        "rate": 0.45
+      }
+    ],
+    "2019": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 10064,
+        "rate": 0.14
+      },
+      {
+        "threshold": 27794,
+        "rate": 0.3
+      },
+      {
+        "threshold": 74517,
+        "rate": 0.41
+      },
+      {
+        "threshold": 157806,
+        "rate": 0.45
+      }
+    ],
+    "2020": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 10084,
+        "rate": 0.11
+      },
+      {
+        "threshold": 25710,
+        "rate": 0.3
+      },
+      {
+        "threshold": 73516,
+        "rate": 0.41
+      },
+      {
+        "threshold": 158122,
+        "rate": 0.45
+      }
+    ],
+    "2021": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 10225,
+        "rate": 0.11
+      },
+      {
+        "threshold": 26070,
+        "rate": 0.3
+      },
+      {
+        "threshold": 74545,
+        "rate": 0.41
+      },
+      {
+        "threshold": 160336,
+        "rate": 0.45
+      }
+    ],
+    "2022": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 10777,
+        "rate": 0.11
+      },
+      {
+        "threshold": 27478,
+        "rate": 0.3
+      },
+      {
+        "threshold": 78570,
+        "rate": 0.41
+      },
+      {
+        "threshold": 168994,
+        "rate": 0.45
+      }
+    ],
+    "2023": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 11294,
+        "rate": 0.11
+      },
+      {
+        "threshold": 28797,
+        "rate": 0.3
+      },
+      {
+        "threshold": 82341,
+        "rate": 0.41
+      },
+      {
+        "threshold": 177106,
+        "rate": 0.45
+      }
+    ],
+    "2024": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 11497,
+        "rate": 0.11
+      },
+      {
+        "threshold": 29315,
+        "rate": 0.3
+      },
+      {
+        "threshold": 83823,
+        "rate": 0.41
+      },
+      {
+        "threshold": 180294,
+        "rate": 0.45
+      }
+    ],
+    "2025": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 11600,
+        "rate": 0.11
+      },
+      {
+        "threshold": 29579,
+        "rate": 0.3
+      },
+      {
+        "threshold": 84577,
+        "rate": 0.41
+      },
+      {
+        "threshold": 181917,
+        "rate": 0.45
+      }
+    ],
+    "2026": [
+      {
+        "threshold": 0,
+        "rate": 0
+      },
+      {
+        "threshold": 11600,
+        "rate": 0.11
+      },
+      {
+        "threshold": 29579,
+        "rate": 0.3
+      },
+      {
+        "threshold": 84577,
+        "rate": 0.41
+      },
+      {
+        "threshold": 181917,
+        "rate": 0.45
+      }
+    ]
+  }
+}
