@@ -42,13 +42,20 @@ const SLIDERS: SliderDef[] = [
   { key: "tauxRemboursementSante", label: "Remboursement Sécu (actes courants)", min: 0, max: 1, step: 0.01, display: (v) => pct(v * 100, 0), groupe: "Logement & Santé" },
   { key: "tauxCreditImmobilier", label: "Taux crédit immobilier", min: 0.005, max: 0.10, step: 0.001, display: (v) => `${(v * 100).toFixed(1)} %`, groupe: "Logement & Santé" },
   { key: "tauxCouvertureAPA", label: "Couverture APA dépendance", min: 0, max: 1, step: 0.05, display: (v) => pct(v * 100, 0), groupe: "Logement & Santé" },
+  { key: "maPrimeRenovBase", label: "MaPrimeRénov (montant max)", min: 0, max: 6000, step: 100, display: (v) => `${v} €/an`, groupe: "Logement & Santé" },
+  // Protection sociale
+  { key: "delaiCarenceMaladie", label: "Délai de carence maladie", min: 0, max: 7, step: 1, display: (v) => `${v} j`, groupe: "Protection sociale" },
+  { key: "tauxIndemnitesMaladie", label: "Indemnités journalières maladie", min: 0.4, max: 1, step: 0.02, display: (v) => pct(v * 100, 0), groupe: "Protection sociale" },
+  { key: "dureeMaxAre", label: "Durée maximale chômage (ARE)", min: 12, max: 36, step: 1, display: (v) => `${v} mois`, groupe: "Protection sociale" },
+  { key: "plafondEpargneRetraitePER", label: "Plafond déductibilité PER", min: 0, max: 0.10, step: 0.005, display: (v) => pct(v * 100, 1), groupe: "Protection sociale" },
+  { key: "bonusVehiculeElectrique", label: "Bonus voiture électrique", min: 0, max: 8000, step: 100, display: (v) => `${v} €`, groupe: "Protection sociale" },
   // Énergie
   { key: "taxeCarbone", label: "Taxe carbone", min: 0, max: 300, step: 5, display: (v) => `${v} €/t`, groupe: "Énergie" },
   { key: "ticpe", label: "TICPE additionnelle carburant", min: 0, max: 1, step: 0.02, display: (v) => `+${v.toFixed(2).replace(".", ",")} €/L`, groupe: "Énergie" },
   { key: "bouclierTarifaireEnergie", label: "Bouclier tarifaire énergie", min: 0, max: 1, step: 0.05, display: (v) => `${Math.round(v * 100)} % plafond`, groupe: "Énergie" },
 ];
 
-const GROUPES = ["Fiscalité", "Social & Travail", "Retraites", "Logement & Santé", "Énergie"];
+const GROUPES = ["Fiscalité", "Social & Travail", "Retraites", "Logement & Santé", "Protection sociale", "Énergie"];
 
 export function StatePanel() {
   const { state, baseline, setStateParam, resetState, etSiActif } = useSim();

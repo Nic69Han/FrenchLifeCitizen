@@ -161,5 +161,15 @@ export function defaultStateParams(year: number): StateParams {
     tauxCreditImmobilier: tauxCreditImmo(year) || 0.035, // taux historique réel (BdF)
     bouclierTarifaireEnergie: 1.0,      // 1 = prix régulés maintenus (bouclier actif)
     tauxCouvertureAPA: 0.50,            // APA couvre ~50 % du plan d'aide (moyen national)
+    // Wave 5 — protection sociale & nouveaux leviers
+    delaiCarenceMaladie: 3,             // 3 jours de carence légaux (L.323-1 CSS, inchangé)
+    tauxIndemnitesMaladie: 0.50,        // ~50 % du salaire journalier de référence (CPAM)
+    // MaPrimeRénov créée jan. 2020 (fusion CITE + Habitation Digne) ; montant moyen ménage modeste
+    maPrimeRenovBase: year >= 2020 ? 2500 : 0,
+    // Bonus écologique voiture électrique : 6 000 € depuis 2020 (baisse progressive)
+    bonusVehiculeElectrique: year >= 2017 ? (year >= 2024 ? 4000 : 6000) : 0,
+    // Durée maximale ARE : 24 mois avant réforme 2021, 18 mois depuis (régime général)
+    dureeMaxAre: year >= 2021 ? 18 : 24,
+    plafondEpargneRetraitePER: 0.10,    // 10 % du revenu brut (plafond PER/PERCO, art. 163 quatervicies CGI)
   };
 }
