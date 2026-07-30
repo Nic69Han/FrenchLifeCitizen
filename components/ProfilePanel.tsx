@@ -279,6 +279,53 @@ export function ProfilePanel() {
           </Field>
         </div>
 
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={`Arrêts maladie — ${profile.joursMaladieAnnee ?? 0} j/an`}>
+            <input
+              type="range"
+              min={0}
+              max={60}
+              step={1}
+              value={profile.joursMaladieAnnee ?? 0}
+              onChange={(e) => setProfile({ joursMaladieAnnee: +e.target.value })}
+              className="w-full"
+            />
+          </Field>
+          <Field
+            label={`Épargne retraite PER — ${euro(profile.epargneRetraiteMensuelle ?? 0)}/mois`}
+          >
+            <input
+              type="range"
+              min={0}
+              max={500}
+              step={10}
+              value={profile.epargneRetraiteMensuelle ?? 0}
+              onChange={(e) =>
+                setProfile({ epargneRetraiteMensuelle: +e.target.value })
+              }
+              className="w-full"
+            />
+          </Field>
+        </div>
+
+        {profile.contrat === "sansEmploi" && (
+          <Field
+            label={`Chômage déjà consommé — ${profile.ancienneteSansEmploi ?? 0} mois`}
+          >
+            <input
+              type="range"
+              min={0}
+              max={36}
+              step={1}
+              value={profile.ancienneteSansEmploi ?? 0}
+              onChange={(e) =>
+                setProfile({ ancienneteSansEmploi: +e.target.value })
+              }
+              className="w-full"
+            />
+          </Field>
+        )}
+
         <Section title="Logement" />
 
         <Field label="Statut d'occupation">

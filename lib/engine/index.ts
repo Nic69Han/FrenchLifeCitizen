@@ -366,6 +366,49 @@ function calculDependance(
   return { aide, cout };
 }
 
+/**
+ * Perte mensuelle de revenu liée aux arrêts maladie.
+ * Pendant la carence (3 j légaux), aucune indemnité ; ensuite CPAM verse tauxIJ.
+ * On suppose 1 arrêt si ≤10 jours/an, 2 arrêts sinon (chaque arrêt déclenche la carence).
+ */
+function coutArretMaladie(
+  profile: CitizenProfile,
+  revenuBrutMensuel: number,
+  state: StateParams
+): number {
+  const jours = profile.joursMaladieAnnee ?? 0;
+  if (jours <= 0 || ["sansEmploi", "retraite"].includes(profile.contrat)) return 0;
+  const nbArrets = jours > 10 ? 2 : 1;
+  const joursCarence = Math.min(jours, nbArrets * state.delaiCarenceMaladie);
+  const joursCouvertsSS = Math.max(0, jours - joursCarence);
+  const salaireJournalier = revenuBrutMensuel / 30;
+  const perteCarence = joursCarence * salaireJournalier;
+  const perteIJ = joursCouvertsSS * salaireJournalier * (1 - state.tauxIndemnitesMaladie);
+  return (perteCarence + perteIJ) / 12;
+}
+
+/**
+ * MaPrimeRénov (2020+) — aide nationale à la rénovation énergétique pour propriétaires
+ * occupants. Means-tested : montant plein sous 2× SMIC net, nul au-delà de 5× SMIC.
+ * Source : ANAH / décret n°2020-26.
+ */
+function aideMaPrimeRenov(
+  profile: CitizenProfile,
+  revenuNetAvantImpot: number,
+  state: StateParams,
+  year: number
+): number {
+  if (state.maPrimeRenovBase <= 0) return 0;
+  if (!["proprietaireSansCredit", "proprietaireAvecCredit"].includes(profile.logement)) return 0;
+  const smicNet = state.smicBrutMensuel * (1 - state.tauxCotisationsSalariales);
+  if (revenuNetAvantImpot > smicNet * 5) return 0;
+  const facteur = revenuNetAvantImpot <= smicNet * 2
+    ? 1
+    : 1 - (revenuNetAvantImpot - smicNet * 2) / (smicNet * 3);
+  // Aide annuelle → mensuel, indexée sur l'IPC
+  return Math.round(state.maPrimeRenovBase * Math.max(0, facteur) * (ipc(year) / ipc(2026)) / 12);
+}
+
 /** Reste à charge santé mensuel selon l'état de santé et le remboursement. */
 function resteAChargeSante(
   profile: CitizenProfile,
@@ -470,9 +513,13 @@ function computeYear(
       : revenuBrutMensuel * tauxCotisEffectif;
   const revenuNetAvantImpot = revenuBrutMensuel - cotisations;
 
-  // Base imposable IR = revenu net − fraction exonérée nette des heures sup
+  // Base imposable IR = revenu net − fraction exonérée nette HS − versements PER
   const exonereIRNet = hsSup.exonere * (1 - tauxCotisEffectif);
-  const baseIRAnnuel = Math.max(0, revenuNetAvantImpot - exonereIRNet) * 12;
+  const deductionPER = Math.min(
+    (profile.epargneRetraiteMensuelle ?? 0) * 12,
+    revenuBrutMensuel * 12 * state.plafondEpargneRetraitePER
+  );
+  const baseIRAnnuel = Math.max(0, (revenuNetAvantImpot - exonereIRNet) * 12 - deductionPER);
   const ir =
     profile.contrat === "sansEmploi"
       ? 0
@@ -503,6 +550,9 @@ function computeYear(
     const rsaMajore = state.rsaSocle * (isParentIsole ? 1.25 : 1);
     const moisAnciennete = profile.anciennete * 12;
     if (moisAnciennete >= 4) {
+      // Droits ARE épuisés si mois de chômage déjà consommés ≥ durée maximale
+      const moisChomage = profile.ancienneteSansEmploi ?? 0;
+      if (moisChomage >= state.dureeMaxAre) return rsaMajore; // bascule RSA
       const areMonthly = (profile.salaireBrutAnnuel / 12) * 0.57;
       return Math.max(areMonthly, rsaMajore);
     }
@@ -523,7 +573,16 @@ function computeYear(
   // APA (Allocation Personnalisée d'Autonomie) pour les seniors dépendants
   const dependance = calculDependance(profile, revenuNetAvantImpot, year, state);
 
-  const aides = aplx + alloc + chomageAide + pa + aah + chequeEn + avantages + dependance.aide;
+  // MaPrimeRénov (2020+) pour propriétaires occupants, means-tested
+  const maPrime = aideMaPrimeRenov(profile, revenuNetAvantImpot, state, year);
+
+  // Bonus voiture électrique — amorti sur 5 ans (60 mois), actif si le profil utilise un VE
+  const bonusElec = profile.transport === "voitureElectrique"
+    ? Math.round(state.bonusVehiculeElectrique / 60 * (ipc(year) / ipc(2026)))
+    : 0;
+
+  const aides = aplx + alloc + chomageAide + pa + aah + chequeEn + avantages
+    + dependance.aide + maPrime + bonusElec;
 
   // --- Dépenses contraintes ---
   const loyer =
@@ -552,9 +611,18 @@ function computeYear(
   const garde = coutGardeEnfants(profile, revenuNetAvantImpot, year, state);
   const scolaire = fraisScolaires(profile, year, state);
 
+  // Perte de revenu liée aux arrêts maladie (carence + fraction non remboursée)
+  const perteMaladie = coutArretMaladie(profile, revenuBrutMensuel, state);
+
+  // Épargne retraite PER : dépense mensuelle réelle (déduite aussi du revenu imposable)
+  const perMensuel = profile.contrat !== "sansEmploi" && profile.contrat !== "retraite"
+    ? (profile.epargneRetraiteMensuelle ?? 0)
+    : 0;
+
   const depensesContraintes =
     loyer + transport + energie + alimentation + santeRAC
-    + abonnements + mutuelle + tf + garde + scolaire + dependance.cout;
+    + abonnements + mutuelle + tf + garde + scolaire + dependance.cout
+    + perteMaladie + perMensuel;
 
   const pouvoirAchat =
     revenuNetAvantImpot - ir + aides + netCapital - depensesContraintes;
@@ -622,6 +690,30 @@ function computeYear(
     : mensualiteDisponible * dureeM;
   const capaciteEmpruntImmo = Math.round(capital / 0.90); // apport 10 % inclus
 
+  // Score de protection sociale 0–100 (100 = très protégé face aux chocs de revenu).
+  // Distinct du score précarité (situation actuelle) : mesure la robustesse prospective.
+  let protection = 60; // base : salarié CDI plein temps
+  // ARE / chômage
+  if (profile.contrat === "sansEmploi") {
+    const moisChomage = profile.ancienneteSansEmploi ?? 0;
+    const pctEpuise = Math.min(1, moisChomage / Math.max(1, state.dureeMaxAre));
+    protection -= Math.round(30 * pctEpuise); // −30 pts quand droits épuisés
+  } else if (["cdd", "interim"].includes(profile.contrat)) {
+    protection -= 10; // contrat précaire
+  }
+  // Maladie : chaque jour de carence soustrait 3 pts ; taux IJ élevé compense
+  protection -= Math.round(state.delaiCarenceMaladie * 3);
+  protection += Math.round((state.tauxIndemnitesMaladie - 0.5) * 30);
+  // Retraite : épargne PER et âge
+  if (perMensuel > 0) protection += 8;
+  if (profile.contrat === "retraite") protection += 5; // déjà liquidée → stable
+  // Dépendance et santé
+  if ((profile.niveauDependance ?? 0) > 0) protection -= 10;
+  if (profile.sante !== "bonne") protection -= 5;
+  // MaPrimeRénov et bonus VE = levier de résilience énergétique
+  if (maPrime > 0) protection += 3;
+  const indicateurProtection = Math.round(Math.min(100, Math.max(0, protection)));
+
   return {
     result: {
       year,
@@ -635,6 +727,7 @@ function computeYear(
       capaciteEpargne,
       coutTravailEmployeur,
       capaciteEmpruntImmo,
+      indicateurProtection,
     },
     details: {
       revenuBrutMensuel,
@@ -815,6 +908,17 @@ export function simulate(
         `Mensualité max (35 % revenu net) sur 20 ans au taux ${(state.tauxCreditImmobilier * 100).toFixed(1)} %. ` +
         `Capital empruntable ÷ 0,90 (apport 10 %). Montre l'impact des taux d'intérêt sur ` +
         `l'accès à la propriété.`,
+    },
+    {
+      key: "indicateurProtection",
+      label: "Protection sociale",
+      value: result.indicateurProtection,
+      unit: "/100",
+      goodDirection: "up",
+      formula:
+        `Score de robustesse face aux chocs de revenu (maladie, chômage, dépendance). ` +
+        `Base : contrat stable = 60/100. Carence maladie (${state.delaiCarenceMaladie} j) et ` +
+        `durée ARE (${state.dureeMaxAre} mois) pilotent l'essentiel. PER et MaPrimeRénov bonifient.`,
     },
   ];
 

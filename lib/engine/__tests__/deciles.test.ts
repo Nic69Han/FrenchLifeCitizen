@@ -35,8 +35,8 @@ describe("simulateDeciles — structure", () => {
 
   it("chaque décile a 10 indicateurs baseline et scenario", () => {
     points.forEach((p) => {
-      expect(p.baseline).toHaveLength(10);
-      expect(p.scenario).toHaveLength(10);
+      expect(p.baseline).toHaveLength(11);
+      expect(p.scenario).toHaveLength(11);
     });
   });
 });
@@ -130,7 +130,7 @@ describe("simulateDeciles — types de ménage", () => {
   it("famille : 9 déciles, 10 indicateurs chacun", () => {
     expect(fam).toHaveLength(9);
     fam.forEach((p) => {
-      expect(p.baseline).toHaveLength(10);
+      expect(p.baseline).toHaveLength(11);
       [...p.baseline, ...p.scenario].forEach((ind) => {
         expect(Number.isFinite(ind.value)).toBe(true);
       });
@@ -140,7 +140,7 @@ describe("simulateDeciles — types de ménage", () => {
   it("retraite : 9 déciles, 10 indicateurs chacun", () => {
     expect(ret).toHaveLength(9);
     ret.forEach((p) => {
-      expect(p.baseline).toHaveLength(10);
+      expect(p.baseline).toHaveLength(11);
       [...p.baseline, ...p.scenario].forEach((ind) => {
         expect(Number.isFinite(ind.value)).toBe(true);
       });

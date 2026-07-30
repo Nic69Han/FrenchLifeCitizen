@@ -74,6 +74,9 @@ export interface CitizenProfile {
   heuresSup?: number;                 // heures supplémentaires par mois
   avantagesSalaries?: number;         // €/mois tickets resto, chèques vacances, CESU
   niveauDependance?: number;          // 0=autonome 1=légère 2=modérée 3=lourde (GIR)
+  joursMaladieAnnee?: number;         // 0–60 jours/an d'arrêt maladie
+  epargneRetraiteMensuelle?: number;  // €/mois versements PER (déductibles IR)
+  ancienneteSansEmploi?: number;      // mois de chômage déjà consommés (0–24)
 }
 
 /** Les curseurs d'État (sous-ensemble MVP des 40 du plan). */
@@ -103,6 +106,13 @@ export interface StateParams {
   tauxCreditImmobilier: number;           // taux annuel crédit immo (défaut ~3.5 %)
   bouclierTarifaireEnergie: number;       // 0–1 (1 = maintenu, 0 = prix libres)
   tauxCouvertureAPA: number;              // 0–1 (fraction couverte par l'APA dépendance)
+  // Wave 5 — protection sociale & nouveaux leviers
+  delaiCarenceMaladie: number;            // 0–7 jours de carence CPAM (légal = 3)
+  tauxIndemnitesMaladie: number;          // 0.4–1.0 (CPAM ~50 %, conventions collectives CC ~100 %)
+  maPrimeRenovBase: number;               // 0–6 000 €/an (aide rénovation, créée 2020)
+  bonusVehiculeElectrique: number;        // 0–8 000 € (bonus écologique, amorti 5 ans)
+  dureeMaxAre: number;                    // 12–36 mois (durée maximale ARE, régime général = 18)
+  plafondEpargneRetraitePER: number;      // 0–0.10, fraction revenu brut déductible PER
 }
 
 /** Un indicateur calculé, avec sa valeur et l'explication de sa formule. */
@@ -128,6 +138,7 @@ export interface SimulationResult {
   capaciteEpargne: number;
   coutTravailEmployeur: number;
   capaciteEmpruntImmo: number;
+  indicateurProtection: number;
 }
 
 export interface FullSimulation {

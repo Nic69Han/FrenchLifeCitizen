@@ -47,9 +47,9 @@ const profileRetraite: CitizenProfile = {
 describe("simulate — structure de sortie", () => {
   const state = defaultStateParams(2026);
 
-  it("retourne 10 indicateurs pour l'année sélectionnée", () => {
+  it("retourne 11 indicateurs pour l'année sélectionnée", () => {
     const { current } = simulate(profileSmic, state, 2026);
-    expect(current).toHaveLength(10);
+    expect(current).toHaveLength(11);
     const keys = current.map((i) => i.key);
     expect(keys).toContain("pouvoirAchat");
     expect(keys).toContain("tauxEffortLogement");
@@ -61,6 +61,7 @@ describe("simulate — structure de sortie", () => {
     expect(keys).toContain("capaciteEpargne");
     expect(keys).toContain("coutTravailEmployeur");
     expect(keys).toContain("capaciteEmpruntImmo");
+    expect(keys).toContain("indicateurProtection");
   });
 
   it("timeline couvre 27 années (2000–2026)", () => {
@@ -391,6 +392,102 @@ describe("simulate — vague 4 : crédit immo, énergie, dépendance", () => {
     const paAvec = avecAPA.find((i) => i.key === "pouvoirAchat")!.value;
     const paSans = sansAPA.find((i) => i.key === "pouvoirAchat")!.value;
     expect(paAvec).toBeGreaterThan(paSans);
+  });
+});
+
+describe("simulate — vague 5 : maladie, ARE, MaPrimeRénov, PER, bonus VE", () => {
+  const state = defaultStateParams(2026);
+
+  it("arrêts maladie réduisent le pouvoir d'achat (carence + perte IJ)", () => {
+    const profileMalade: CitizenProfile = { ...profileSmic, joursMaladieAnnee: 20 };
+    const { current: sain } = simulate(profileSmic, state, 2026);
+    const { current: malade } = simulate(profileMalade, state, 2026);
+    const paSain = sain.find((i) => i.key === "pouvoirAchat")!.value;
+    const paMalade = malade.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paMalade).toBeLessThan(paSain);
+  });
+
+  it("suppression carence maladie (0 j) améliore PA d'une personne souvent malade", () => {
+    const profileMalade: CitizenProfile = { ...profileSmic, joursMaladieAnnee: 15 };
+    const state3j = { ...state, delaiCarenceMaladie: 3 };
+    const state0j = { ...state, delaiCarenceMaladie: 0 };
+    const { current: avec3j } = simulate(profileMalade, state3j, 2026);
+    const { current: avec0j } = simulate(profileMalade, state0j, 2026);
+    const pa3 = avec3j.find((i) => i.key === "pouvoirAchat")!.value;
+    const pa0 = avec0j.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(pa0).toBeGreaterThan(pa3);
+  });
+
+  it("droits ARE épuisés (ancienneteSansEmploi >= dureeMaxAre) bascule sur RSA", () => {
+    const profileChomeur: CitizenProfile = {
+      ...profileSmic,
+      contrat: "sansEmploi",
+      anciennete: 5,
+      ancienneteSansEmploi: 0, // droits ARE encore actifs
+    };
+    const profileExhauste: CitizenProfile = { ...profileChomeur, ancienneteSansEmploi: 18 };
+    const { current: avec } = simulate(profileChomeur, state, 2026);
+    const { current: epuise } = simulate(profileExhauste, state, 2026);
+    const paAvec = avec.find((i) => i.key === "pouvoirAchat")!.value;
+    const paEpuise = epuise.find((i) => i.key === "pouvoirAchat")!.value;
+    // ARE > RSA → épuisement réduit le PA
+    expect(paEpuise).toBeLessThan(paAvec);
+  });
+
+  it("durée ARE plus longue améliore la protection sociale", () => {
+    const stateAre12 = { ...state, dureeMaxAre: 12 };
+    const stateAre36 = { ...state, dureeMaxAre: 36 };
+    const { current: c12 } = simulate(profileSmic, stateAre12, 2026);
+    const { current: c36 } = simulate(profileSmic, stateAre36, 2026);
+    const prot12 = c12.find((i) => i.key === "indicateurProtection")!.value;
+    const prot36 = c36.find((i) => i.key === "indicateurProtection")!.value;
+    expect(prot36).toBeGreaterThanOrEqual(prot12);
+  });
+
+  it("MaPrimeRénov améliore le PA d'un propriétaire modeste", () => {
+    const profileProprio: CitizenProfile = {
+      ...profileSmic,
+      logement: "proprietaireSansCredit",
+      loyerOuMensualite: 0,
+    };
+    const stateSansMPR = { ...state, maPrimeRenovBase: 0 };
+    const { current: avecMPR } = simulate(profileProprio, state, 2026);
+    const { current: sansMPR } = simulate(profileProprio, stateSansMPR, 2026);
+    const paAvec = avecMPR.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansMPR.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans);
+  });
+
+  it("PER réduit l'impôt sur le revenu d'un cadre (déductibilité)", () => {
+    const profileCadre: CitizenProfile = { ...profileSmic, csp: "cadre", salaireBrutAnnuel: 80000 };
+    const profileCadrePER: CitizenProfile = { ...profileCadre, epargneRetraiteMensuelle: 300 };
+    const { current: sansPER } = simulate(profileCadre, state, 2026);
+    const { current: avecPER } = simulate(profileCadrePER, state, 2026);
+    // Avec PER : base IR réduite → IR plus bas mais PA baisse car dépense PER > gain IR
+    // Le taux d'imposition effectif doit être plus bas
+    const tauxSans = sansPER.find((i) => i.key === "tauxImpositionEffectif")!.value;
+    const tauxAvec = avecPER.find((i) => i.key === "tauxImpositionEffectif")!.value;
+    expect(tauxAvec).toBeLessThanOrEqual(tauxSans);
+  });
+
+  it("bonus voiture électrique améliore le PA d'un usager VE", () => {
+    const profileVE: CitizenProfile = { ...profileSmic, transport: "voitureElectrique" };
+    const stateSansBonus = { ...state, bonusVehiculeElectrique: 0 };
+    const { current: avecBonus } = simulate(profileVE, state, 2026);
+    const { current: sansBonus } = simulate(profileVE, stateSansBonus, 2026);
+    const paAvec = avecBonus.find((i) => i.key === "pouvoirAchat")!.value;
+    const paSans = sansBonus.find((i) => i.key === "pouvoirAchat")!.value;
+    expect(paAvec).toBeGreaterThan(paSans);
+  });
+
+  it("indicateurProtection entre 0 et 100 pour tout profil", () => {
+    const profiles = [profileSmic, profileRsa, profileRetraite];
+    profiles.forEach((p) => {
+      const { current } = simulate(p, state, 2026);
+      const prot = current.find((i) => i.key === "indicateurProtection")!.value;
+      expect(prot).toBeGreaterThanOrEqual(0);
+      expect(prot).toBeLessThanOrEqual(100);
+    });
   });
 });
 
